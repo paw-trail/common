@@ -41,7 +41,8 @@ public class TraceIdResponseAdvice implements ResponseBodyAdvice<Object> {
         Span currentSpan = tracer.currentSpan();
 
         // 추적이 꺼져 있거나 현재 요청이 스팬 밖이면 currentSpan이 null임
-        // 아래 조건 검사를 context() 호출에서 NullPointException이 발생해 모든 API가 500이 됨
+        // 아래 조건 검사를 생략하면 traceId를 기록할 수 없는 조건(모니터링 툴을 내린 경우)에서
+        // context()를 호출할 때 NullPointerException이 발생해 모든 API가 500이 됨
         if (currentSpan == null) {
             return body;
         }
