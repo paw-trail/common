@@ -3,9 +3,7 @@ package com.pawtrail.common.message.outbox;
 import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.UUID;
@@ -15,9 +13,7 @@ import java.util.UUID;
 // @Async와 @Transactional은 적용 순서가 보장되지 않아 @Transactional이 밖에 걸리면
 // 호출 스레드에서 트랜잭션이 시작돼 비동기 스레드와 끊길 수 있기 때문
 @Slf4j
-@Component
 @RequiredArgsConstructor
-@ConditionalOnClass(name = "org.springframework.data.jpa.repository.JpaRepository")
 public class OutboxPublisher {
 
     private final KafkaTemplate<String, Object> kafkaTemplate;

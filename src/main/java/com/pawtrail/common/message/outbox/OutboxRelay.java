@@ -3,20 +3,15 @@ package com.pawtrail.common.message.outbox;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 // 발행에 실패한 미발행 메시지를 재시도
-// 동일 서비스에 대한 여러 인스터스 중에 한 인스터스만 (app.outbox.relay.enabled=true)를 통해 실행
+// 동일 서비스에 대한 여러 인스턴스 중에 한 인스턴스만 (app.outbox.relay.enabled=true)를 통해 실행
+// 위 조건은 CommonMessagingAutoConfiguration의 Bean 선언부에 있음
 @Slf4j
-@Component
 @RequiredArgsConstructor
-@ConditionalOnClass(name = "org.springframework.data.jpa.repository.JpaRepository")
-@ConditionalOnProperty(name = "app.outbox.relay.enabled", havingValue = "true")
 public class OutboxRelay {
 
     private final OutboxRepository outboxRepository;

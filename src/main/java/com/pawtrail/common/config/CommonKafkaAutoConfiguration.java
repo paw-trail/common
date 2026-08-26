@@ -1,17 +1,20 @@
-package com.pawtrail.common.message;
+package com.pawtrail.common.config;
 
+import com.pawtrail.common.message.KafkaSecurityInterceptor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.common.TopicPartition;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.core.KafkaOperations;
+import org.springframework.kafka.listener.CommonErrorHandler;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.util.backoff.ExponentialBackOff;
 
 /**
- * Consumer 예외 처리 정책
+ * Consumer 예외 처리 정책 및 인증 컨텍스트 복원 인터셉터 등록
  *
  * GlobalExceptionHandler는 HTTP 요청 스레드 밖 예외를 잡지 못하므로,
  * KafkaListener에서 터진 예외는 여기서 처리하지 않으면 스프링 카프카 기본 동작으로
@@ -20,9 +23,9 @@ import org.springframework.util.backoff.ExponentialBackOff;
  * 정책: 1초부터 2배씩 늘려 3회 재시도하고, 그래도 실패하면 dlq로 보낸 뒤 오프셋을 넘김
  */
 @Slf4j
-@Configuration
+@AutoConfiguration
 @ConditionalOnClass(name = "org.springframework.kafka.core.KafkaTemplate")
-public class KafkaConsumerConfig {
+public class CommonKafkaAutoConfiguration {
 
     private static final long INITIAL_INTERVAL_MS = 1_000L;
     private static final double MULTIPLIER = 2.0;
@@ -30,6 +33,13 @@ public class KafkaConsumerConfig {
     private static final int MAX_ATTEMPTS = 3;
 
     @Bean
+    @ConditionalOnMissingBean
+    public KafkaSecurityInterceptor kafkaSecurityInterceptor() {
+        return new KafkaSecurityInterceptor();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(CommonErrorHandler.class)
     public DefaultErrorHandler kafkaErrorHandler(KafkaOperations<String, Object> kafkaOperations) {
 
         // 최종 실패 시 {원본토픽}.dlq로 보냄

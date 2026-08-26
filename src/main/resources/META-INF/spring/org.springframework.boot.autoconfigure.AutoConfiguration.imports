@@ -1,0 +1,6 @@
+com.pawtrail.common.config.CommonAsyncAutoConfiguration
+com.pawtrail.common.config.CommonJpaAutoConfiguration
+com.pawtrail.common.config.CommonKafkaAutoConfiguration
+com.pawtrail.common.config.CommonMessagingAutoConfiguration
+com.pawtrail.common.config.CommonSecurityAutoConfiguration
+com.pawtrail.common.config.CommonWebAutoConfiguration

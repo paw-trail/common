@@ -1,21 +1,21 @@
 package com.pawtrail.common.security.filter;
 
 import com.pawtrail.common.enums.Role;
+import com.pawtrail.common.message.AuthContextHeaders;
 import com.pawtrail.common.security.principal.CustomUserPrincipal;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.util.List;
+import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
-
-import java.io.IOException;
-import java.util.List;
-import java.util.UUID;
 
 @Slf4j
 public class HeaderAuthenticationFilter extends OncePerRequestFilter {
@@ -24,11 +24,11 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
-        String userIdHeader = request.getHeader("X-User-Id");
-        String roleHeader = request.getHeader("X-User-Role");
+        String userIdHeader = request.getHeader(AuthContextHeaders.USER_ID);
+        String roleHeader = request.getHeader(AuthContextHeaders.USER_ROLE);
 
         // 헤더가 하나라도 없으면 바로 filterChain.doFilter() 호출 후 return
-        // 인증이 필요한 경로인지 판단하는 것은 SecurityConfig의 몫
+        // 인증이 필요한 경로인지 판단하는 것은 CommonSecurityAutoConfiguration의 몫
         if (userIdHeader == null || roleHeader == null) {
             filterChain.doFilter(request, response);
             return;

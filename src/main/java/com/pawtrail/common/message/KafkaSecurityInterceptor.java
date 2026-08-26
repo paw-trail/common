@@ -9,14 +9,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.Header;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.kafka.listener.RecordInterceptor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Component;
 
 // 소비 시 Kafka 헤더를 SecurityContext로 복원
 // Consumer는 HTTP 요청 밖 스레드에서 실행돼 SecurityContext가 비어 있으므로,
@@ -35,8 +33,6 @@ import org.springframework.stereotype.Component;
 // 제네릭은 불변이라 <String, Object>로 두면 빈은 뜨지만 리스너 컨테이너에 조용히 안 붙음
 // 우리는 헤더만 읽으므로 키·값 타입에 의존하지 않아 <Object, Object>로 둬도 무방함
 @Slf4j
-@Component
-@ConditionalOnClass(name = "org.springframework.kafka.core.KafkaTemplate")
 public class KafkaSecurityInterceptor implements RecordInterceptor<Object, Object> {
 
     @Override

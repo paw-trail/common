@@ -3,15 +3,11 @@ package com.pawtrail.common.message.inbox;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
-import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 // kafka 이벤트를 중복 없이 한번만 처리하도록 함
 @Slf4j
-@Component
 @RequiredArgsConstructor
-@ConditionalOnClass(name = "org.springframework.data.jpa.repository.JpaRepository")
 public class InboxProcessor {
 
     private final ProcessedEventRepository processedEventRepository;

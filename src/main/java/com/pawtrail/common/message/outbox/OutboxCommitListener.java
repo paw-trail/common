@@ -2,17 +2,13 @@ package com.pawtrail.common.message.outbox;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 // Business 트랜잭션이 커밋된 직후 즉시 발행을 시도
 @Slf4j
-@Component
 @RequiredArgsConstructor
-@ConditionalOnClass(name = "org.springframework.data.jpa.repository.JpaRepository")
 public class OutboxCommitListener {
 
     private final OutboxPublisher outboxPublisher;
