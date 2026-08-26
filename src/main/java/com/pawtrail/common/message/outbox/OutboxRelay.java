@@ -30,8 +30,8 @@ public class OutboxRelay {
     @Transactional(readOnly = true)
     public void publishPendingMessages() {
         // 부분 인덱스(idx_outbox_unpublished)를 통해 오래된 순으로 미발행 건을 조회
-        List<OutboxMessage> pendingMessages =
-                outboxRepository.findUnpublishedMessages(PageRequest.of(0, BATCH_SIZE));
+        List<OutboxMessage> pendingMessages = outboxRepository.findUnpublishedMessages(
+                OutboxRepository.MAX_RETRY_COUNT, PageRequest.of(0, BATCH_SIZE));
 
         if (pendingMessages.isEmpty()) {
             return;
@@ -45,7 +45,8 @@ public class OutboxRelay {
             boolean hasOlderPending = outboxRepository.existsOlderUnpublishedMessage(
                     message.getAggregateType(),
                     message.getAggregateId(),
-                    message.getCreatedAt()
+                    message.getCreatedAt(),
+                    OutboxRepository.MAX_RETRY_COUNT
             );
 
             if (hasOlderPending) {

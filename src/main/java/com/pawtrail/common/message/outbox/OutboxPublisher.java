@@ -52,10 +52,16 @@ public class OutboxPublisher {
             return true;
 
         } catch (Exception e) {
-            // 발행 실패
             message.recordFailure(e.getMessage());
-            log.warn("Outbox 발행 실패: eventId={}, retryCount={}, reason={}",
-                    message.getEventId(), message.getRetryCount(), e.getMessage());
+
+            if (message.getRetryCount() >= OutboxRepository.MAX_RETRY_COUNT) {
+                // 이 시점부터 Relay 조회에서 빠지므로 알아야 함
+                log.error("Outbox 최대 재시도 초과. 더 이상 발행하지 않습니다: eventId={}, topic={}, reason={}",
+                        message.getEventId(), message.getTopic(), e.getMessage());
+            } else {
+                log.warn("Outbox 발행 실패: eventId={}, retryCount={}, reason={}",
+                        message.getEventId(), message.getRetryCount(), e.getMessage());
+            }
             return false;
         }
     }
