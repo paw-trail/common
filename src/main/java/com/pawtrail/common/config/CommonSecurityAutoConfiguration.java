@@ -66,6 +66,14 @@ public class CommonSecurityAutoConfiguration {
                 .authorizeHttpRequests(auth -> auth
                         // 내부 통신(/internal/**)과 헬스체크(/actuator/**)는 인증 없이 허용
                         .requestMatchers("/internal/**", "/actuator/**").permitAll()
+
+                        // 관리자 API는 ADMIN 역할만 접근할 수 있음
+                        // 관리자 기능이 여러 서비스에 흩어져 있어 각 서비스가 따로 막게 하면
+                        // 하나만 빠뜨려도 그 서비스가 그대로 열리므로 공통 모듈에서 한 번에 막음
+                        // HeaderAuthenticationFilter가 "ROLE_" 접두사를 붙여 권한을 만들므로
+                        // hasRole 이 그대로 동작함
+                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+
                         // 그 외 모든 요청은 인증(헤더를 통한 principal 주입)이 필수
                         .anyRequest().authenticated()
                 );
