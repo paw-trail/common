@@ -14,7 +14,7 @@ paw-trail 조직의 서비스들이 공통으로 사용하는 라이브러리입
 | 예외 | `ErrorCode` 계약, `CommonErrorCode`, `CustomException`, 전역 예외 핸들러 |
 | 인증 | 헤더 기반 인증 필터, `CustomUserPrincipal`, `@CurrentUser`, 기본 보안 체인 |
 | 엔티티 | `BaseEntity`(감사 컬럼 6개), 감사자 판정 |
-| 이벤트 | 이벤트 봉투, Outbox 발행, Inbox 멱등 처리, Consumer 예외 정책 |
+| 이벤트 | 이벤트 봉투, Outbox 발행, Inbox 멱등 처리, 메시지 역직렬화, Consumer 예외 정책 |
 | 스키마 | `outbox`·`processed_event` 테이블 마이그레이션 |
 
 ---
@@ -91,7 +91,7 @@ spring:
 | `CommonSecurityAutoConfiguration` | 서블릿 웹 + spring-security | `SecurityFilterChain`, `CustomSecurityExceptionHandler` |
 | `CommonJpaAutoConfiguration` | spring-data-jpa | `AuditorProvider`, JPA Auditing 활성화 |
 | `CommonMessagingAutoConfiguration` | spring-data-jpa + spring-kafka | `OutboxEventRecorder`, `OutboxPublisher`, `OutboxCommitListener`, `OutboxRelay`, `InboxProcessor` |
-| `CommonKafkaAutoConfiguration` | spring-kafka | `KafkaSecurityInterceptor`, `DefaultErrorHandler` |
+| `CommonKafkaAutoConfiguration` | spring-kafka | `RecordMessageConverter`, `KafkaSecurityInterceptor`, `DefaultErrorHandler` |
 | `CommonAsyncAutoConfiguration` | 없음 | `@EnableAsync` |
 
 조건 판단에 `jakarta.persistence.EntityManager`가 아니라 `org.springframework.data.jpa.repository.JpaRepository`를 쓰는 이유는, `hibernate-spatial`이 `hibernate-core`를 거쳐 `jakarta.persistence-api`를 전이로 끌고 오기 때문입니다. JPA 스타터를 제거한 서비스에서도 `EntityManager`는 클래스패스에 남아 조건이 참이 되어버립니다.
@@ -197,7 +197,7 @@ place.delete(auditorProvider.current());
 
 ### 4-5. 이벤트 발행
 
-먼저 이벤트 DTO를 만듭니다. **`DomainEvent`를 구현하고, 라우팅 메서드 3개는 payload에 나가지 않습니다.** 인터페이스 선언에 `@JsonIgnore`가 붙어 있어 구현체가 그대로 상속받습니다.
+발행할 이벤트는 `domain/event/payload/`에 정의합니다. **`DomainEvent`를 구현하고, 라우팅 메서드 3개는 payload에 나가지 않습니다.** 인터페이스 선언에 `@JsonIgnore`가 붙어 있어 구현체가 그대로 상속받습니다.
 
 ```java
 public record PolicyChangedEvent(
@@ -249,11 +249,28 @@ app:
 
 ### 4-6. 이벤트 소비
 
-Kafka는 at-least-once이므로 같은 메시지를 두 번 받을 수 있습니다. `InboxProcessor`로 감싸면 처리 이력과 비즈니스 로직이 한 트랜잭션으로 묶여 중복 처리가 막힙니다.
+**받는 서비스는 발행 서비스의 이벤트 클래스를 가져다 쓰지 않고, 자기 소비용 DTO를 따로 정의합니다.** 레포지터리가 나뉘어 있어 공유가 불가능하기도 하지만, 그보다 받는 쪽이 실제로 쓰는 필드만 선언할 수 있다는 점이 중요합니다.
+
+DTO는 `infrastructure/message/kafka/consumer/dto/`에 둡니다.
 
 ```java
-@KafkaListener(topics = "policy.changed", groupId = "search")
-public void onPolicyChanged(EventEnvelope<PolicyChangedEvent> envelope) {
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record PolicyChangedMessage(
+        UUID placeId,
+        int policyVersion
+) {}
+```
+
+두 가지를 지킵니다.
+
+- **`@JsonIgnoreProperties(ignoreUnknown = true)`는 필수입니다.** 없으면 발행 서비스가 필드를 하나 추가하는 순간 받는 쪽이 깨지고, 두 서비스의 배포 순서가 서로 묶입니다.
+- **`DomainEvent`를 구현하지 않습니다.** `EventEnvelope<T>`에는 타입 제약이 없고 정적 팩터리 `of()`에서만 `DomainEvent`를 요구하므로, 받는 쪽은 순수 record면 충분합니다. 구현하면 받는 쪽에서 의미 없는 토픽·집합체 값을 채워야 합니다.
+
+리스너는 `infrastructure/message/kafka/consumer/`에 둡니다. 봉투를 타입 그대로 받으면 `RecordMessageConverter`가 파라미터에 선언된 타입을 읽어 역직렬화합니다.
+
+```java
+@KafkaListener(topics = "policy.changed", groupId = "${spring.application.name}")
+public void onPolicyChanged(EventEnvelope<PolicyChangedMessage> envelope) {
     inboxProcessor.processOnce(
             envelope.eventId(),
             envelope.eventType(),
@@ -261,6 +278,10 @@ public void onPolicyChanged(EventEnvelope<PolicyChangedEvent> envelope) {
     );
 }
 ```
+
+`topics`에 적는 문자열은 발행 쪽 `DomainEvent.getTopic()`이 반환하는 값과 **정확히 같아야 합니다.** 어긋나도 오류가 나지 않고 이벤트만 오지 않으므로 눈으로 확인합니다.
+
+Kafka는 at-least-once이므로 같은 메시지를 두 번 받을 수 있습니다. `InboxProcessor`로 감싸면 처리 이력과 비즈니스 로직이 한 트랜잭션으로 묶여 중복 처리가 막힙니다.
 
 **예외는 잡지 않고 그대로 던집니다.** 컨슈머 밖으로 나가야 프레임워크가 재시도와 DLQ 전송을 처리합니다. 1초부터 2배씩 늘려 3회 재시도하고, 그래도 실패하면 `{원본토픽}.dlq`로 보낸 뒤 오프셋을 넘깁니다.
 
@@ -308,7 +329,7 @@ com.pawtrail.common
 │   └── handler/GlobalExceptionHandler          예외를 응답 형식으로 변환
 │
 ├── message/
-│   ├── DomainEvent                             이벤트 DTO가 구현할 계약
+│   ├── DomainEvent                             발행할 이벤트가 구현할 계약
 │   ├── EventEnvelope                           모든 이벤트를 감싸는 봉투
 │   ├── AuthContextHeaders                      인증 헤더 키의 단일 출처
 │   ├── KafkaSecurityInterceptor                소비 시 헤더를 SecurityContext로 복원
@@ -396,6 +417,10 @@ DB를 쓰지 않는 서비스인데 JPA 자동 설정이 켜진 경우입니다.
 
 jar 안에 `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`가 들어갔는지 확인합니다. 그리고 `scanBasePackages`에 `com.pawtrail.common`을 넣지 않았는지도 함께 확인합니다.
 
+**리스너에서 `MessageConversionException`이 납니다**
+
+JSON 문자열을 봉투 타입으로 바꿔줄 `RecordMessageConverter`가 적용되지 않은 경우입니다. 서비스가 자기 `RecordMessageConverter`를 따로 정의하지 않았는지 확인합니다. Bean이 둘이 되면 어느 쪽도 적용되지 않아, 아예 없을 때와 같은 증상이 나타납니다.
+
 **IntelliJ가 `Could not autowire`를 표시합니다**
 
 오탐입니다. 이 모듈은 라이브러리라 `@SpringBootApplication`이 없어 IDE가 스프링 컨텍스트 모델을 만들지 못합니다. 빌드에는 영향이 없습니다.
@@ -411,5 +436,6 @@ jar 안에 `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfigura
 - 재시도와 DLQ 전송
 - Flyway 공통 마이그레이션 실행
 - jsonb 컬럼 직렬화
+- 봉투의 `occurredAt`이 발행·소비 양쪽에서 같은 형식으로 다루어지는지
 
 `RestClientAuthInterceptor`는 클래스만 존재하며 아직 `RestClient.Builder`에 연결되어 있지 않습니다. 서비스 간 호출을 처음 구현하는 시점에 연결 방식을 정합니다.
