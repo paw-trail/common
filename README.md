@@ -22,6 +22,7 @@ paw-trail 조직의 서비스들이 공통으로 사용하는 라이브러리입
 | 엔티티 | `BaseEntity`(감사 컬럼 6개), 감사자 판정 |
 | 이벤트 | 이벤트 봉투, Outbox 발행, Inbox 멱등 처리, 메시지 역직렬화, Consumer 예외 정책 |
 | 스키마 | `outbox`·`processed_event` 테이블 마이그레이션 |
+| 로깅 | Loki 전송용 logback appender 정의 |
 
 ---
 
@@ -80,10 +81,66 @@ DB를 사용하지 않는 서비스(verdict, congestion, route)는 `@EntityScan`
 ```yaml
 spring:
   flyway:
-    locations:
-      - classpath:db/migration/common
-      - classpath:db/migration
+    locations: classpath:db/migration/common,classpath:db/migration/service
 ```
+
+**서비스의 스크립트는 `db/migration/` 바로 아래가 아니라 `db/migration/service/`에 둡니다.** 두 위치가 서로의 하위 경로이면 Flyway가 한쪽을 버립니다.
+
+```
+Discarding location 'classpath:db/migration/common'
+  as it is a sub-location of 'classpath:db/migration'
+```
+
+이 경우에도 상위 경로를 훑으면서 하위 폴더를 함께 읽으므로 결과는 맞아 보이지만, 공통 대역과 서비스 대역이 경로 수준에서 분리되지 않은 상태입니다. 공통 모듈의 위치가 바뀌는 순간 깨지므로 두 경로를 형제로 둡니다.
+
+### 2-4. 로깅
+
+공통 모듈이 Loki 전송용 appender 정의를 `logback-loki-appender.xml`로 들고 있습니다. **정의만 들어 있으므로 서비스가 끌어다 쓰지 않으면 아무 일도 일어나지 않습니다.**
+
+파일 이름을 `logback-spring.xml`로 두지 않은 이유는 그 이름이 클래스패스에서 하나만 읽히기 때문입니다. 서비스 레포의 `src/main/resources`가 jar보다 앞서므로 같은 이름으로 두면 공통 모듈 쪽이 무시됩니다.
+
+서비스의 `src/main/resources/logback-spring.xml`을 다음과 같이 만듭니다.
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+
+    <springProperty name="appName" source="spring.application.name" defaultValue="unknown"/>
+    <springProperty name="lokiUrl" source="app.logging.loki.url"
+                    defaultValue="http://localhost:3100/loki/api/v1/push"/>
+
+    <include resource="logback-loki-appender.xml"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <springProfile name="!local">
+            <appender-ref ref="LOKI"/>
+        </springProfile>
+    </root>
+
+</configuration>
+```
+
+주의할 점이 셋 있습니다.
+
+- **파일 이름이 반드시 `logback-spring.xml`이어야 합니다.** `logback.xml`로 두면 스프링 확장이 걸리지 않아 `<springProfile>`과 `<springProperty>`가 오류 없이 조용히 무시됩니다.
+- **`<springProperty>`를 `<include>`보다 먼저 선언합니다.** 공통 모듈 쪽 XML이 그 값을 참조합니다.
+- **`<appender-ref ref="LOKI"/>`를 빠뜨리면 로그가 전송되지 않습니다.** appender가 만들어져 있어도 root에 걸리지 않으면 아무 데도 흐르지 않으며, 오류는 나지 않습니다.
+
+전송 여부는 프로파일로 가릅니다. `local`은 IntelliJ에서 실행하는 경우, `dev`는 컨테이너에서 실행하는 경우입니다. 서비스의 `application.yml`에 기본값을 둡니다.
+
+```yaml
+spring:
+  profiles:
+    default: local
+```
+
+`active`가 아니라 `default`인 점이 중요합니다. `default`는 아무도 지정하지 않았을 때만 적용되므로, 컨테이너에서 `SPRING_PROFILES_ACTIVE=dev`를 주면 그쪽이 우선합니다. IntelliJ에서는 별도 설정 없이 `local`로 동작해 Loki 전송이 꺼집니다.
+
+appender 의존성인 `loki-logback-appender`는 공통 모듈이 `api`로 들고 있어 서비스까지 전파됩니다. 서비스가 따로 선언할 필요가 없습니다.
 
 ---
 
@@ -301,7 +358,7 @@ public void onPolicyChanged(EventEnvelope<PolicyChangedMessage> envelope) {
 }
 ```
 
-`topics`에 적는 문자열은 발행 쪽 `DomainEvent.getTopic()`이 반환하는 값과 **정확히 같아야 합니다.** 토픽 이름은 공통 모듈에 상수로 두지 않으므로 같은 문자열이 두 레포에 각각 존재하며, **어긋나도 오류가 나지 않고 이벤트만 오지 않습니다.** 전체 토픽 목록은 service-template README의 이벤트 표를 참조하고, 실물 확인은 Kafdrop에서 토픽에 메시지가 쌓였는지로 합니다.
+`topics`에 적는 문자열은 발행 쪽 `DomainEvent.getTopic()`이 반환하는 값과 **정확히 같아야 합니다.** 토픽 이름은 공통 모듈에 상수로 두지 않으므로 같은 문자열이 두 레포에 각각 존재하며, **어긋나도 오류가 나지 않고 이벤트만 오지 않습니다.** 전체 토픽 목록은 service-template README의 이벤트 표를 참조하고, 실물 확인은 Kafka UI에서 토픽에 메시지가 쌓였는지로 합니다.
 
 Kafka는 at-least-once이므로 같은 메시지를 두 번 받을 수 있습니다. `InboxProcessor`로 감싸면 처리 이력과 비즈니스 로직이 한 트랜잭션으로 묶여 중복 처리가 막힙니다.
 
@@ -316,7 +373,7 @@ Kafka는 at-least-once이므로 같은 메시지를 두 번 받을 수 있습니
 | 대역 | 위치 | 내용 |
 |---|---|---|
 | V1 ~ V19 | 공통 모듈 jar | `outbox`, `processed_event` |
-| V20 ~ | 서비스 레포 | 서비스별 테이블 |
+| V20 ~ | 서비스 레포 `db/migration/service/` | 서비스별 테이블 |
 
 한 번 적용된 스크립트는 내용 해시로 검증되므로 수정할 수 없습니다. 공통 대역에 스크립트를 추가하면 이를 사용하는 모든 서비스에 적용되므로, 추가 시 팀에 알립니다.
 
@@ -507,6 +564,7 @@ src/main/resources/
 | `app.auditor.system-name` | `SYSTEM` | 인증 정보가 없을 때 감사 컬럼에 들어갈 이름. 배치는 `ingest-batch` 등으로 지정 |
 | `app.outbox.relay.enabled` | `false` | 회수 스케줄러 활성화. 서비스당 한 인스턴스에서만 |
 | `app.outbox.relay.interval-ms` | `5000` | 회수 주기 |
+| `app.logging.loki.url` | `http://localhost:3100/loki/api/v1/push` | Loki 전송 주소. `logback-spring.xml`이 읽습니다 |
 
 ---
 
@@ -557,7 +615,23 @@ JSON 문자열을 봉투 타입으로 바꿔줄 `RecordMessageConverter`가 적�
 
 **이벤트를 발행했는데 받는 쪽이 반응하지 않습니다**
 
-토픽 문자열이 어긋났을 가능성이 큽니다. 발행 쪽 `getTopic()`과 받는 쪽 `@KafkaListener(topics = ...)`를 대조하고, Kafdrop에서 토픽에 메시지가 실제로 쌓였는지 확인합니다. 쌓여 있다면 받는 쪽 문제, 비어 있다면 발행 쪽 문제입니다.
+토픽 문자열이 어긋났을 가능성이 큽니다. 발행 쪽 `getTopic()`과 받는 쪽 `@KafkaListener(topics = ...)`를 대조하고, Kafka UI에서 토픽에 메시지가 실제로 쌓였는지 확인합니다. 쌓여 있다면 받는 쪽 문제, 비어 있다면 발행 쪽 문제입니다.
+
+**Loki에 로그가 하나도 들어가지 않습니다**
+
+먼저 Loki가 무엇이든 받았는지 확인합니다.
+
+```powershell
+curl.exe "http://localhost:3100/loki/api/v1/labels"
+```
+
+응답에 `data` 필드가 아예 없다면 전송된 로그가 하나도 없는 상태입니다. 다음 순서로 확인합니다.
+
+1. 서비스에 `src/main/resources/logback-spring.xml`이 있는지. 공통 모듈의 `logback-loki-appender.xml`은 정의만 들고 있어 단독으로는 동작하지 않습니다.
+2. 그 파일의 root에 `<appender-ref ref="LOKI"/>`가 걸려 있는지.
+3. 실행 프로파일이 `local`이 아닌지. 기동 로그 첫머리의 `The following 1 profile is active` 줄로 확인합니다.
+
+appender 생성 자체가 실패했다면 스프링 배너 앞뒤에 `ERROR in ch.qos.logback...` 한 줄이 출력됩니다. 스택트레이스가 아니라 짧은 줄이라 놓치기 쉽습니다. 이 경우에도 애플리케이션은 정상 기동하고 로그만 전송되지 않습니다.
 
 **IntelliJ가 `Could not autowire`를 표시합니다**
 
@@ -567,14 +641,24 @@ JSON 문자열을 봉투 타입으로 바꿔줄 `RecordMessageConverter`가 적�
 
 ## 10. 현재 상태
 
-다음 항목은 아직 실물 환경에서 확인되지 않았습니다. Kafka 브로커와 PostgreSQL을 띄우는 시점에 함께 검증합니다.
+Kafka 브로커와 PostgreSQL을 띄운 환경에서 다음 항목을 확인했습니다.
 
 - Outbox에서 Kafka를 거쳐 Inbox까지의 전체 흐름
-- `InboxProcessor`의 트랜잭션 결합
-- 재시도와 DLQ 전송
+- `InboxProcessor`의 멱등 처리. 같은 이벤트를 다시 받으면 비즈니스 로직을 실행하지 않습니다
+- `OutboxEventRecorder`의 `MANDATORY` 전파. 트랜잭션 없이 호출하면 예외가 발생합니다
+- 기록 직후 예외를 던졌을 때 outbox 행이 함께 롤백되는지
+- 재시도와 DLQ 전송. 1초, 2초, 4초 간격으로 시도한 뒤 `{토픽}.dlq`로 이동합니다
 - Flyway 공통 마이그레이션 실행
-- jsonb 컬럼 직렬화
+- jsonb 컬럼 직렬화. 봉투의 라우팅 필드가 payload로 새지 않는 것도 함께 확인했습니다
 - 봉투의 `occurredAt`이 발행·소비 양쪽에서 같은 형식으로 다루어지는지
+- 기본 보안 체인이 Boot 기본 설정보다 우선 적용되는지
+- traceId가 Kafka를 건너 소비 쪽까지 이어지는지
+
+재시도 횟수는 `maxAttempts`가 3이지만 실제 시도는 최초 1회를 포함해 4회입니다.
+
+다음 항목은 아직 확인하지 않았습니다.
+
+- `KafkaSecurityInterceptor`가 리스너 컨테이너에 적용되는지. 인증 헤더가 실린 이벤트가 필요하므로 auth 서비스를 만든 뒤 확인합니다
 - 관리자 경로가 `ADMIN` 역할로만 통과하는지
 
-`RestClientAuthInterceptor`는 클래스만 존재하며 아직 `RestClient.Builder`에 연결되어 있지 않습니다. 서비스 간 호출을 처음 구현하는 시점에 연결 방식을 정합니다.
+`RestClientAuthInterceptor`는 클래스만 존재하며 아직 `RestClient.Builder`에 연결되어 있지 않습니다. 서비스 간 호출을 처음 구현하는 시점에 연결 방식을 정합니다. 연결이 되었는지는 서비스 A가 인증된 요청을 처리하면서 B를 호출했을 때 **B가 만든 행의 `created_by`가 `SYSTEM`이 아니라 실제 계정 식별자인지**로 확인합니다. 연결되지 않아도 오류는 발생하지 않습니다.
