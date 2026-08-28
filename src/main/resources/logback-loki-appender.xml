@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Loki 전송용 logback appender 정의임
+
+  이 파일을 logback-spring.xml 이라는 이름으로 두지 않는 이유
+    logback-spring.xml 은 클래스패스에서 하나만 읽히고
+    서비스 레포의 src/main/resources 가 jar 보다 앞서므로 이 파일이 무시됨
+    따라서 다른 이름으로 두고 서비스의 logback-spring.xml 에서 include 해서 씀
+
+  서비스 쪽에서 해야 할 일
+    <springProperty> 로 appName·lokiUrl 을 먼저 선언한 뒤 이 파일을 include 하고
+    <springProfile name="!local"> 안에서 <appender-ref ref="LOKI"/> 를 걸 것
+
+  로그를 도커 로그 드라이버나 수집 에이전트로 모으지 않고 앱이 직접 push 하는 이유
+    도메인 서비스를 IntelliJ 에서 돌리므로 컨테이너 밖에 있고
+    그 둘로는 컨테이너 밖 프로세스의 로그가 잡히지 않음
+-->
+<included>
+
+    <!--
+      라벨은 Loki 가 색인하는 값이라 종류가 적어야 함(저카디널리티)
+      traceId 처럼 값이 무수히 많은 것을 라벨로 넣으면 Loki 성능이 급격히 나빠짐
+
+      쉼표를 쓰지 않고 한 줄에 하나씩 적는 것이 loki4j 2.x 문법임
+      1.x 의 <format><label><pattern>a=1,b=2</pattern></label></format> 구조는 없어졌으므로
+      인터넷 예제를 그대로 가져오면 동작하지 않음
+    -->
+    <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
+
+        <labels>
+            app = ${appName}
+            level = %level
+        </labels>
+
+        <!--
+          traceId·spanId 는 여기 적지 않아도 됨
+          loki4j 2.0 부터 MDC 가 structured metadata 에 자동으로 들어가고
+          Micrometer 가 traceId·spanId 를 MDC 에 넣어 주기 때문임
+
+          structured metadata 는 색인되지 않으므로 고카디널리티 값을 담기에 적합하고
+          Loki 가 본문 전체를 훑지 않아도 되어 검색 효율은 유지됨
+        -->
+        <structuredMetadata>
+            thread = %thread
+            logger = %logger
+        </structuredMetadata>
+
+        <message>
+            <pattern>%msg%n%ex</pattern>
+        </message>
+
+        <http>
+            <url>${lokiUrl}</url>
+        </http>
+
+    </appender>
+
+</included>

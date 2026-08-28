@@ -6,18 +6,18 @@ plugins {
 }
 
 group = 'com.pawtrail'
-version = '0.0.3'
+version = '0.0.4'
 
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
     }
-    // 서비스 쪽 IDE에서 공통 모듈 코드를 바로 열어볼 수 있게 소스도 함께 배포합니다.
+    // 서비스 쪽 IDE 에서 공통 모듈 코드를 바로 열어볼 수 있게 소스도 함께 배포함
     withSourcesJar()
 }
 
-// 실행되는 서비스가 아니라 라이브러리이므로 실행 가능 jar를 만들지 않습니다.
-// bootJar 산출물은 BOOT-INF 구조라 다른 프로젝트가 의존성으로 쓸 수 없습니다.
+// 실행되는 서비스가 아니라 라이브러리이므로 실행 가능 jar 를 만들지 않음
+// bootJar 산출물은 BOOT-INF 구조라 다른 프로젝트가 의존성으로 쓸 수 없음
 tasks.named('bootJar') {
     enabled = false
 }
@@ -35,17 +35,32 @@ dependencies {
     compileOnly         'org.springframework.boot:spring-boot-starter'
     annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
 
-    // ── 아래는 전부 compileOnly 입니다 ────────────────────────
-    // implementation 으로 두면 공통 모듈을 쓰는 순간 JPA와 Kafka가 함께 딸려 들어와
-    // 조건부 로딩을 해둔 의미가 사라집니다. 실제 스타터는 각 서비스가 직접 선언합니다.
+    // ── 로깅 ──────────────────────────────────────────────────
+    // 아래 compileOnly 들과 달리 api 로 두어 서비스까지 전파시킴
+    //
+    // compileOnly 로 두는 이유는 조건부 로딩 때문인데(무상태 서비스가 JPA 를 안 물게 하려고)
+    // 로깅은 17개 서비스가 예외 없이 전부 쓰므로 조건부일 이유가 없음
+    //
+    // XML 은 common 에 있고 의존성은 서비스에 있으면 짝이 갈리고,
+    // 서비스가 빠뜨리면 logback 이 클래스를 못 찾아 appender 만 조용히 빠짐
+    // 앱은 정상 기동하고 로그만 Loki 에 안 가므로 알아채기 어려움
+    //
+    // 2.1.0 은 logback-classic 1.6.1 을 요구하는데 Boot 4.1.1 이 물고 오는 것은 1.5.38 이라
+    // 2.0 라인을 씀
+    api 'com.github.loki4j:loki-logback-appender:2.0.3'
+
+    // ── 아래는 전부 compileOnly 임 ────────────────────────────
+    // implementation 으로 두면 공통 모듈을 쓰는 순간 JPA 와 Kafka 가 함께 딸려 들어와
+    // 조건부 로딩을 해둔 의미가 사라짐
+    // 실제 스타터는 각 서비스가 직접 선언함
     compileOnly 'org.springframework.boot:spring-boot-starter-webmvc'
     compileOnly 'org.springframework.boot:spring-boot-starter-validation'
     compileOnly 'org.springframework.boot:spring-boot-starter-security'
     compileOnly 'org.springframework.boot:spring-boot-starter-data-jpa'
     compileOnly 'org.springframework.boot:spring-boot-starter-data-redis'
     compileOnly 'org.springframework.boot:spring-boot-starter-kafka'
-    // TraceIdResponseAdvice가 Tracer 타입만 참조합니다.
-    // (실제 Tracer 빈은 각 서비스의 spring-boot-starter-zipkin이 만듭니다.)
+    // TraceIdResponseAdvice 가 Tracer 타입만 참조함
+    // 실제 Tracer 빈은 각 서비스의 spring-boot-starter-zipkin 이 만듦
     compileOnly 'io.micrometer:micrometer-tracing'
     compileOnly 'org.springframework.data:spring-data-commons'
 
@@ -54,7 +69,7 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok'
 
     // ── 테스트 ────────────────────────────────────────────────
-    // compileOnly 는 테스트 컴파일에 걸리지 않으므로 같은 의존성을 다시 선언합니다.
+    // compileOnly 는 테스트 컴파일에 걸리지 않으므로 같은 의존성을 다시 선언함
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
