@@ -455,9 +455,12 @@ com.pawtrail.common
 │   │                                               따로 정의합니다. 결합을 피하기 위함입니다.
 │   │                                               제네릭에 타입 제약이 없어 받는 쪽 DTO 는
 │   │                                               DomainEvent 를 구현하지 않아도 됩니다
-│   ├── AuthContextHeaders.java (final class)       X-User-Id·X-User-Role 헤더 키의 단일 출처입니다.
+│   ├── AuthContextHeaders.java (final class)       X-User-Id·X-User-Role 헤더 키입니다.
 │   │                                               HTTP 필터, 서비스 간 호출 인터셉터, 카프카 인터셉터가
-│   │                                               같은 문자열을 각자 들고 있으면 어긋나도 알 수 없습니다
+│   │                                               같은 문자열을 각자 들고 있으면 어긋나도 알 수 없습니다.
+│   │                                               다만 게이트웨이는 이 모듈을 쓰지 않아 같은 문자열을
+│   │                                               자기 저장소에 따로 적고 있으므로, 여기가 완전한
+│   │                                               단일 출처는 아닙니다. 어긋나면 401 로만 나타납니다
 │   ├── KafkaSecurityInterceptor.java (class)       소비 시 카프카 헤더를 SecurityContext 로 복원합니다.
 │   │                                               컨슈머는 HTTP 요청 밖 스레드에서 실행되어 컨텍스트가
 │   │                                               비어 있고, 복원하지 않으면 컨슈머가 만든 행의
