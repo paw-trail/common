@@ -3,7 +3,6 @@ package com.pawtrail.common.message.outbox;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -55,13 +54,8 @@ public class OutboxMessage {
 
     private LocalDateTime publishedAt;
 
-    @PrePersist
-    protected void onCreate() {
-        if (this.createdAt == null) {
-            this.createdAt = LocalDateTime.now();
-        }
-    }
-
+    // 생성자가 protected 이므로 이 팩터리가 유일한 생성 경로임
+    // createdAt 을 여기서 채우므로 @PrePersist 안전망을 따로 두지 않음
     public static OutboxMessage create(
             UUID eventId,
             String aggregateType,

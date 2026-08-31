@@ -3,6 +3,7 @@ package com.pawtrail.common.message.outbox;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -41,4 +42,24 @@ public interface OutboxRepository extends JpaRepository<OutboxMessage, UUID> {
             @Param("createdAt") LocalDateTime createdAt,
             @Param("maxRetryCount") int maxRetryCount
     );
+
+    // 각 서비스의 관리자 재발행 API 가 쓰는 조회임
+    // 위 두 메서드와 달리 retryCount 를 보지 않음
+    //
+    // * Relay 는 임계를 넘긴 건을 빼야 함
+    //   포기한 건이 같은 집합체의 뒤 메시지를 영영 막기 때문임
+    //
+    // * 관리자는 반대로 그 임계를 넘긴 건을 봐야 함
+    //   Relay 가 더 이상 줍지 않으므로 사람이 찾아내지 않으면 아무도 다시 보내지 않음
+    //   에러도 남지 않아 조회 수단이 없으면 존재 자체를 알 수 없음
+    //
+    // * 여기서 찾은 건은 OutboxPublisher.publish 로 직접 발행함
+    //   publish 에는 retryCount 검사가 없으므로 임계를 넘긴 건도 그대로 나감
+    //   따라서 카운터를 되돌릴 필요가 없고, 남아 있는 값이 곧 "몇 번 실패했는지" 의 기록이 됨
+    @Query("""
+        SELECT m FROM OutboxMessage m
+        WHERE m.publishedAt IS NULL
+        ORDER BY m.createdAt ASC
+    """)
+    Page<OutboxMessage> findUnpublishedIgnoringRetryLimit(Pageable pageable);
 }
