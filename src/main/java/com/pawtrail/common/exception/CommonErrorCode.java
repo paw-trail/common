@@ -11,6 +11,13 @@ public enum CommonErrorCode implements ErrorCode {
     AUTHENTICATION_FAILED(HttpStatus.UNAUTHORIZED, "인증에 실패하였습니다."),
     // 접근 권한 없음
     ACCESS_DENIED(HttpStatus.FORBIDDEN, "접근 권한이 없습니다."),
+    // 그런 경로가 없음
+    //
+    // 컨트롤러가 없는 주소를 부르면 스프링이 정적 리소스를 찾다가
+    // NoResourceFoundException 을 던지는데, 그것을 이 코드로 바꿔 내보냄
+    // 이 코드가 없던 동안에는 최종 폴백이 잡아 500 이 나갔고,
+    // 프론트가 "내가 주소를 틀렸나" 와 "서버가 터졌나" 를 구분할 수 없었음
+    RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "요청하신 경로를 찾을 수 없습니다."),
     // 내부 서버 에러
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부에 에러가 발생하였습니다."),
     // 외부 API 호출 에러

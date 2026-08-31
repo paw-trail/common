@@ -10,6 +10,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplicat
 import org.springframework.boot.security.autoconfigure.SecurityAutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -32,6 +34,39 @@ public class CommonSecurityAutoConfiguration {
     @ConditionalOnMissingBean
     public CustomSecurityExceptionHandler customSecurityExceptionHandler(JsonMapper jsonMapper, Tracer tracer) {
         return new CustomSecurityExceptionHandler(jsonMapper, tracer);
+    }
+
+    // 스프링 부트가 만드는 기본 사용자 계정을 물러나게 함
+    //
+    // * 왜 필요한가
+    //   SecurityFilterChain 을 정의하면 기본 보안 체인은 물러나지만
+    //   사용자 계정을 만드는 자동 설정은 그것과 별개라 그대로 뜸
+    //   그래서 기동할 때마다 아래 로그가 남음
+    //     Using generated security password: 65e31c6c-...
+    //   비밀번호가 로그에 찍히고 그 로그가 Loki 로 넘어감
+    //   AuthenticationManager 빈이 있으면 그 자동 설정이 물러남
+    //
+    // * 왜 항상 예외를 던지는가
+    //   우리는 스프링의 인증 흐름을 쓰지 않음
+    //   아이디와 비밀번호를 스프링이 확인하는 것이 아니라
+    //   인증 서비스가 직접 확인해 토큰을 만들고,
+    //   나머지 서비스는 게이트웨이가 넣어 준 헤더만 믿음
+    //   그러므로 이 빈이 불리는 상황 자체가 잘못된 것이며
+    //   조용히 실패하는 것보다 무엇이 잘못됐는지 말하고 끝내는 편이 나음
+    //
+    // * ProviderManager 를 쓰지 않는 이유
+    //   그 클래스는 provider 목록이 비어 있고 부모도 없으면
+    //   생성자에서 예외를 던져 기동 자체가 실패함
+    //   AuthenticationManager 는 메서드가 하나뿐이라 람다로 둘 수 있음
+    @Bean
+    @ConditionalOnMissingBean
+    public AuthenticationManager authenticationManager() {
+        return authentication -> {
+            throw new AuthenticationServiceException(
+                    "이 서비스는 스프링 인증 흐름을 쓰지 않습니다. "
+                            + "인증은 게이트웨이가 주입한 헤더로 이루어지며 "
+                            + "로그인은 인증 서비스가 직접 처리합니다");
+        };
     }
 
     @Bean
