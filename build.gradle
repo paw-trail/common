@@ -6,7 +6,7 @@ plugins {
 }
 
 group = 'com.pawtrail'
-version = '0.0.5'
+version = '0.0.6'
 
 java {
     toolchain {
@@ -64,6 +64,27 @@ dependencies {
     compileOnly 'io.micrometer:micrometer-tracing'
     compileOnly 'org.springframework.data:spring-data-commons'
 
+    // ── QueryDSL ──────────────────────────────────────────────
+    // BaseEntity 의 Q 클래스를 만들어 jar 에 담기 위한 것임
+    //
+    // * 왜 필요한가
+    //   서비스의 엔티티가 BaseEntity 를 상속하면 그쪽 QueryDSL 이 QXxx 를 만드는데
+    //   그 코드가 com.pawtrail.common.entity.QBaseEntity 를 참조함
+    //   이 프로세서가 없으면 그 클래스가 jar 에 없어 서비스 컴파일이 깨짐
+    //     QAccount.java: cannot find symbol - class QBaseEntity
+    //
+    // * 조건부 로딩과 무관함
+    //   위 compileOnly 들과 달리 이것은 컴파일 시점에만 도는 프로세서이고
+    //   결과물인 QBaseEntity.class 는 아무 빈도 만들지 않는 값 객체임
+    //   무상태 서비스가 받아도 쓰지 않으면 그만이라 해롭지 않음
+    //
+    // * groupId 가 io.github.openfeign.querydsl 인 것에 주의할 것
+    //   원래의 com.querydsl 은 유지보수가 멈춰 이 포크로 갈아탔음
+    //   서비스 쪽과 같은 좌표여야 생성된 Q 클래스가 서로 맞물림
+    //   패키지명은 com.querydsl 그대로임
+    compileOnly         "io.github.openfeign.querydsl:querydsl-jpa:${querydslVersion}"
+    annotationProcessor "io.github.openfeign.querydsl:querydsl-apt:${querydslVersion}:jpa"
+
     // ── Lombok ────────────────────────────────────────────────
     compileOnly         'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
@@ -78,6 +99,7 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-kafka-test'
     testImplementation 'io.micrometer:micrometer-tracing'
     testImplementation 'org.springframework.data:spring-data-commons'
+    testImplementation      "io.github.openfeign.querydsl:querydsl-jpa:${querydslVersion}"
     testCompileOnly         'org.projectlombok:lombok'
     testAnnotationProcessor 'org.projectlombok:lombok'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
