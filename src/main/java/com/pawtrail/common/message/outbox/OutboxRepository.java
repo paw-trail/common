@@ -2,6 +2,7 @@ package com.pawtrail.common.message.outbox;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -62,4 +63,35 @@ public interface OutboxRepository extends JpaRepository<OutboxMessage, UUID> {
         ORDER BY m.createdAt ASC
     """)
     Page<OutboxMessage> findUnpublishedIgnoringRetryLimit(Pageable pageable);
+
+    // 발행하기 직전에 그 행을 잠그고 가져옴
+    //
+    // * 왜 필요한가
+    //   즉시 발행(OutboxCommitListener)과 회수 발행(OutboxRelay)이 같은 행을 동시에 집으면
+    //   같은 이벤트가 카프카에 두 번 실림
+    //   OutboxPublisher 가 publishedAt 을 확인하기는 하나, 확인하는 시점과
+    //   발행이 끝나 표시를 남기는 시점 사이가 벌어져 있어 그 틈에 둘 다 통과함
+    //   특히 첫 발행은 프로듀서를 만드느라 0.6초가량 걸려 잘 겹침
+    //
+    // * SKIP LOCKED 를 쓰는 이유
+    //   그냥 FOR UPDATE 로 두면 뒤에 온 쪽이 앞선 발행이 끝날 때까지 기다렸다가
+    //   잠금이 풀린 뒤 publishedAt 을 보고 물러남
+    //   결과는 같지만 최대 3초를 붙잡고 있게 되며, 회수 발행이 한 번에 20건을 도는 동안
+    //   그런 대기가 쌓임
+    //   SKIP LOCKED 는 남이 잡고 있는 행을 아예 건너뛰어 기다림이 생기지 않음
+    //
+    // * 인스턴스가 여러 개여도 그대로 동작함
+    //   잠금이 데이터베이스에 있으므로 서로 다른 인스턴스의 발행도 겹치지 않음
+    //   verdict 와 search 를 여러 개로 띄우기로 한 결정과 짝이 되는 자리임
+    //
+    // * JPA 의 @Lock 대신 네이티브 질의를 쓰는 이유
+    //   SKIP LOCKED 를 JPA 로 지정하려면 잠금 대기 시간 힌트에 -2 라는 약속된 값을 넣어야 하는데,
+    //   그 값의 뜻이 명세가 아니라 구현에 달려 있고 힌트가 질의보다 늦게 적용되는 문제가 보고돼 있음
+    //   PostgreSQL 문법을 그대로 적으면 무엇을 하려는지가 코드에 드러나고 판올림에도 덜 흔들림
+    @Query(value = """
+        SELECT * FROM outbox
+        WHERE id = :id
+        FOR UPDATE SKIP LOCKED
+    """, nativeQuery = true)
+    Optional<OutboxMessage> findByIdForUpdateSkipLocked(@Param("id") UUID id);
 }

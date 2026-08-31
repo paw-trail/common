@@ -25,14 +25,36 @@ public class OutboxPublisher {
     public boolean publish(UUID outboxId) {
 
         // 호출자의 영속성 컨텍스트와 분리된 트랜잭션이므로 다시 조회
-        OutboxMessage message = outboxRepository.findById(outboxId).orElse(null);
+        //
+        // 이때 행을 잠급니다.
+        // 즉시 발행과 회수 발행이 같은 행을 동시에 집으면 같은 이벤트가 두 번 실리는데,
+        // 아래 isPublished 검사만으로는 막지 못합니다.
+        // 확인하는 시점과 발행이 끝나 표시를 남기는 시점 사이가 벌어져 있어
+        // 그 틈에 들어온 쪽도 미발행으로 보기 때문입니다.
+        //
+        // 잠금은 이 트랜잭션이 끝날 때까지 유지되고 그 안에 카프카 전송이 들어 있으므로,
+        // 전송이 끝나 표시가 남을 때까지 다른 경로가 이 행을 건드리지 못합니다.
+        OutboxMessage message = outboxRepository.findByIdForUpdateSkipLocked(outboxId)
+                .orElse(null);
 
         if (message == null) {
-            log.warn("Outbox 메시지를 찾을 수 없습니다: outboxId={}", outboxId);
+            // 두 가지 경우가 여기로 옵니다.
+            //   ①다른 경로가 이미 잠그고 발행 중이다 - 정상이며 아무것도 하지 않는 것이 맞음
+            //   ②그런 행이 없다 - 잘못된 호출이므로 알아야 함
+            //
+            // 잠긴 행은 건너뛰어져 조회 결과가 비므로 둘이 구분되지 않습니다.
+            // 잠기지 않은 조회를 한 번 더 해서 가려냅니다.
+            // 이 질의는 결과가 비었을 때만 실행되므로 평소 경로에는 부담이 없습니다.
+            if (outboxRepository.existsById(outboxId)) {
+                log.debug("다른 경로가 발행 중이므로 건너뜁니다: outboxId={}", outboxId);
+            } else {
+                log.warn("Outbox 메시지를 찾을 수 없습니다: outboxId={}", outboxId);
+            }
             return false;
         }
 
-        // 즉시 발행과 회수 발행이 겹쳐 이미 처리됐을 수 있음
+        // 앞선 발행이 이미 끝난 뒤에 들어온 경우입니다.
+        // 위 잠금이 동시에 들어온 것을 막고, 이 검사가 뒤늦게 들어온 것을 막습니다.
         if (message.isPublished()) {
             return true;
         }
