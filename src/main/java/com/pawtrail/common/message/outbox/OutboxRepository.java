@@ -45,24 +45,42 @@ public interface OutboxRepository extends JpaRepository<OutboxMessage, UUID> {
     );
 
     // 각 서비스의 관리자 재발행 API 가 쓰는 조회임
-    // 위 두 메서드와 달리 retryCount 를 보지 않음
+    //
+    // Relay 가 포기한 건만 돌려줌
     //
     // * Relay 는 임계를 넘긴 건을 빼야 함
     //   포기한 건이 같은 집합체의 뒤 메시지를 영영 막기 때문임
     //
-    // * 관리자는 반대로 그 임계를 넘긴 건을 봐야 함
+    // * 관리자는 반대로 그 임계를 넘긴 건만 봐야 함
     //   Relay 가 더 이상 줍지 않으므로 사람이 찾아내지 않으면 아무도 다시 보내지 않음
     //   에러도 남지 않아 조회 수단이 없으면 존재 자체를 알 수 없음
+    //
+    // * 아직 재시도 중인 건을 함께 보여주지 않는 이유
+    //   그것은 곧 Relay 가 다시 집을 것이라 사람이 할 일이 없음
+    //   섞어서 보여주면 목록을 볼 때마다 "이건 기다리면 되는 건가" 를 가려야 하고,
+    //   목록이 비어 있다는 것 자체가 "문제 없음" 이 되지 못함
     //
     // * 여기서 찾은 건은 OutboxPublisher.publish 로 직접 발행함
     //   publish 에는 retryCount 검사가 없으므로 임계를 넘긴 건도 그대로 나감
     //   따라서 카운터를 되돌릴 필요가 없고, 남아 있는 값이 곧 "몇 번 실패했는지" 의 기록이 됨
+    default Page<OutboxMessage> findGivenUpMessages(Pageable pageable) {
+        return findByRetryCountAtLeast(MAX_RETRY_COUNT, pageable);
+    }
+
+    // 위 메서드가 쓰는 실제 질의임
+    //
+    // 임계값을 인자로 받는 것은 JPQL 이 자바 상수를 직접 읽지 못하기 때문임
+    // 부르는 쪽이 그 값을 정하라는 뜻이 아니므로 서비스는 위 default 메서드만 씀
+    // 서비스가 다른 숫자를 넘기면 "Relay 는 10에서 포기했는데 목록은 다른 기준으로 보여주는"
+    // 어긋남이 생김
     @Query("""
         SELECT m FROM OutboxMessage m
         WHERE m.publishedAt IS NULL
+          AND m.retryCount >= :maxRetryCount
         ORDER BY m.createdAt ASC
     """)
-    Page<OutboxMessage> findUnpublishedIgnoringRetryLimit(Pageable pageable);
+    Page<OutboxMessage> findByRetryCountAtLeast(@Param("maxRetryCount") int maxRetryCount,
+                                                Pageable pageable);
 
     // 발행하기 직전에 그 행을 잠그고 가져옴
     //
