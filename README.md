@@ -71,6 +71,91 @@
 
 ---
 
+### 먼저 알아 두면 좋은 것 4가지
+
+**아래를 모르면 이 문서가 안 읽힙니다.** 한 문단씩만 보고 갑니다.
+
+---
+
+**① 라이브러리란 — 이 저장소는 실행되지 않습니다**
+
+```
+서비스 저장소 (auth · place ...)        이 저장소 (common)
+
+  빌드  ──▶  실행 가능한 jar              빌드  ──▶  끼워 넣는 jar
+              java -jar 로 뜸                        혼자서는 아무것도 안 함
+              도커 이미지가 됨                        *다른 서비스의 build.gradle 에 한 줄로 들어감
+```
+
+**GitHub Packages 에 올려 두고 각 서비스가 내려받습니다.** `commonVersion=0.0.9` 가 그것입니다.
+
+---
+
+**② 자동 설정이란 — 의존성만 넣으면 알아서 켜집니다**
+
+```
+서비스가 build.gradle 에 common 을 추가
+        │
+        ▼
+스프링 부트가 기동하며 jar 안의 목록을 읽음        META-INF/spring/...AutoConfiguration.imports
+        │
+        ▼
+목록의 설정 클래스 6개를 하나씩 봄
+        "이 서비스에 JPA 가 있나?"  →  있으면 JPA 관련 Bean 을 올림
+        "Kafka 가 있나?"           →  있으면 Kafka 관련 Bean 을 올림
+        │
+        ▼
+서비스는 아무것도 등록하지 않았는데 응답 형식 · 예외 처리 · 인증이 붙어 있음
+```
+
+**"클래스패스에 있나" 가 판단 기준입니다.** 클래스패스란 **그 서비스가 빌드에 넣은
+라이브러리 전부**를 뜻합니다. `spring-data-jpa` 를 넣었으면 클래스패스에 있는 것입니다.
+
+---
+
+**③ 이벤트란 — 서비스끼리 직접 부르지 않는 방법**
+
+```
+직접 호출                              이벤트
+
+auth  ──▶  user  "프로필 만들어"         auth  ──▶  Kafka  "계정이 생겼음"
+              │                                         │
+              └── user 가 죽어 있으면                    └──▶  user 가 나중에 읽어 감
+                  가입이 실패함                                auth 는 user 를 몰라도 됨
+```
+
+**auth 가 `account.created` 를 발행하면 user 가 그것을 받아 프로필을 만듭니다.**
+auth 는 user 가 떠 있는지, 몇 개인지, 어디 있는지 몰라도 됩니다.
+
+---
+
+**④ Outbox 가 왜 필요한가 — "저장은 됐는데 이벤트가 안 나갔다"**
+
+```
+⛔ 그냥 하면
+
+  ① DB 에 계정 저장       성공
+  ② Kafka 에 이벤트 발행   실패 (Kafka 가 잠깐 죽음)
+        │
+        └── 계정은 있는데 프로필이 영영 안 생김. 아무도 모름
+
+
+✅ Outbox 를 쓰면
+
+  ① DB 에 계정 저장       ─┐
+  ② DB 에 이벤트도 저장    ─┴── 같은 트랜잭션 → 둘 다 되거나 둘 다 안 됨
+        │
+        └──▶  ③ 별도 작업이 outbox 표를 읽어 Kafka 로 보냄
+                    실패하면 5초마다 다시 시도
+```
+
+**Inbox 는 반대쪽입니다.** 같은 이벤트가 두 번 오면(재시도·리밸런싱) **한 번만 처리**하게
+막습니다.
+
+<br><br>
+
+---
+
 ### 이 문서를 읽는 순서
 
 | 지금 하려는 일 | 볼 곳 |
@@ -83,6 +168,7 @@
 | 뭔가 안 된다 | [6장](#6-막히기-쉬운-자리) |
 | "왜 이렇게 만들었지" | [7장](#7-왜-이렇게-만들었나) |
 | 지금 상태가 궁금하다 | [8장](#8-현재-상태) |
+| 모르는 말이 나온다 | [9장](#9-용어) |
 
 > **이 모듈을 고치는 일은 드뭅니다.** 대부분은 [1장](#1-서비스에-붙이기)·[4장](#4-쓰는-법)
 > 만 보면 됩니다. [5장](#5-버전을-올리고-배포하기) 은 실제로 고칠 때만 봅니다.
@@ -486,7 +572,7 @@ com.pawtrail.common
     │
     ├── outbox/                           "저장은 됐는데 이벤트가 안 나갔다" 를 막음
     │   ├── OutboxMessage · OutboxRepository
-    │   ├── OutboxEventRecorder            ★서비스가 부르는 발행 입구
+    │   ├── OutboxEventRecorder            *서비스가 부르는 발행 입구
     │   ├── OutboxPublisher                실제 카프카 전송
     │   ├── OutboxCommitListener           커밋 직후 발행
     │   └── OutboxRelay                    놓친 건 회수 (5초)
@@ -496,7 +582,7 @@ com.pawtrail.common
         └── InboxProcessor
 
 src/main/resources/
-├── META-INF/spring/AutoConfiguration.imports    ★없으면 아무것도 안 켜지는데 오류도 안 남
+├── META-INF/spring/AutoConfiguration.imports    *없으면 아무것도 안 켜지는데 오류도 안 남
 ├── db/migration/common/V1__outbox.sql · V2__inbox.sql
 └── logback-loki-appender.xml                    서비스의 logback 이 include 해서 씀
 ```
@@ -523,7 +609,7 @@ TraceIdResponseAdvice        응답 직전에 traceId 를 채움
 GlobalExceptionHandler       ErrorCode 를 보고 상태와 메시지를 정함
         │
         ▼
-TraceIdResponseAdvice        ★실패 응답도 여기를 지남
+TraceIdResponseAdvice        *실패 응답도 여기를 지남
         │
         ▼
 { "code": "PLACE_NOT_FOUND", "message": "...", "data": null, "traceId": "6a97..." }
@@ -749,6 +835,9 @@ QueryDSL 공통 조건이고, **실제 조회를 짜는 서비스에서 정합�
         @CurrentUser 로 컨트롤러가 꺼냄
 ```
 
+**`SecurityContext`** 는 *"이 요청을 보낸 사람이 누구인가"* 를 요청이 끝날 때까지 들고 있는
+자리입니다. 필터가 헤더를 읽어 거기 채워 두면 **컨트롤러는 `@CurrentUser` 로 꺼내기만 합니다.**
+
 ```java
 @GetMapping
 public CommonApiResponse<List<PetOutput>> getMyPets(@CurrentUser CustomUserPrincipal principal) {
@@ -810,12 +899,15 @@ public record CustomUserPrincipal(UUID accountId, Role role) implements Authenti
 
 ### 3-5. message/outbox — 이벤트를 안전하게 보내기
 
+**트랜잭션**이란 *"여러 쓰기를 한 덩어리로 — 전부 되거나 전부 안 되거나"* 입니다.
+계정 INSERT 와 outbox INSERT 를 한 트랜잭션에 넣으면 **둘 중 하나만 남는 일이 없습니다.**
+
 ```
 서비스 트랜잭션
   │
   ├──▶  비즈니스 데이터 INSERT
   │
-  └──▶  outboxEventRecorder.record(이벤트)      ★한 줄
+  └──▶  outboxEventRecorder.record(이벤트)      *한 줄
               │
               ├──▶  EventEnvelope.of(이벤트)          봉투 생성
               ├──▶  JsonMapper 로 직렬화
@@ -930,7 +1022,7 @@ retry_count >= 10
               ├──▶  ProcessedEvent 저장          PK 충돌이 드문 경쟁을 확실히 막음
               │        충돌 ──▶  예외 → 재시도에서 건너뜀
               │
-              └──▶  비즈니스 로직 실행            ★같은 트랜잭션
+              └──▶  비즈니스 로직 실행            *같은 트랜잭션
 
   둘을 한 트랜잭션에 묶는 이유
     따로 커밋하면   "로직 성공 + 기록 실패"  →  중복 처리
@@ -1014,7 +1106,7 @@ public interface DomainEvent {
   "occurredAt": "2026-09-01T14:22:10",
   "aggregateType": "Place",
   "aggregateId": "01a0...",      파티션 키
-  "data": { }                    ★각 서비스가 따로 정의
+  "data": { }                    *각 서비스가 따로 정의
 }
 ```
 
@@ -1352,7 +1444,7 @@ public void onPlaceUpdated(EventEnvelope<PlaceUpdatedMessage> envelope) {
 ① 코드를 고치고 build.gradle 의 version 을 올림
         │
         ▼
-② ./gradlew publishToMavenLocal              ★로컬에 먼저 넣음
+② ./gradlew publishToMavenLocal              *로컬에 먼저 넣음
         │
         ▼
 ③ 소비 서비스에서 검증
@@ -1364,7 +1456,7 @@ public void onPlaceUpdated(EventEnvelope<PlaceUpdatedMessage> envelope) {
 ④ ./gradlew publish                          GitHub Packages 로
         │
         ▼
-⑤ mavenLocal() 을 지우고 다시 빌드            ★순서 주의
+⑤ mavenLocal() 을 지우고 다시 빌드            *순서 주의
         │
         ▼
 ⑥ 버전 표기를 여러 곳에 반영
@@ -1486,7 +1578,7 @@ META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports
 com/pawtrail/common/config/Common*AutoConfiguration.class          6개
 db/migration/common/V1__outbox.sql
 db/migration/common/V2__inbox.sql
-com/pawtrail/common/entity/QBaseEntity.class                       ★QueryDSL 생성물
+com/pawtrail/common/entity/QBaseEntity.class                       *QueryDSL 생성물
 ```
 
 > **`imports` 파일이 없으면 자동 설정이 하나도 안 켜지는데 오류도 안 납니다.**
@@ -2056,3 +2148,40 @@ curl -X POST http://localhost:8081/api/v1/auth/login \
 **B 가 만든 행의 `created_by` 가 `SYSTEM` 이 아니라 실제 accountId** 여야 합니다.
 
 > **에러가 안 나므로 이것을 안 보면 모릅니다.**
+
+<br><br>
+
+---
+
+## 9. 용어
+
+공통 용어는 `service-template` README 11장에 있습니다. **여기는 이 모듈에서만 쓰는 말**입니다.
+
+| 용어 | 뜻 |
+|---|---|
+| **라이브러리** | 혼자 실행되지 않고 다른 앱에 끼워지는 코드 묶음. 이 저장소 |
+| **jar** | 자바 코드를 압축한 파일. 실행 가능한 것과 끼워 넣는 것이 있음 |
+| **자동 설정** | 의존성이 있으면 스프링이 알아서 Bean 을 올리는 것. `@AutoConfiguration` |
+| **클래스패스** | 그 서비스가 빌드에 넣은 라이브러리 전부. 자동 설정의 판단 기준 |
+| **Bean** | 스프링이 만들어 관리하는 객체. `@Bean` · `@Component` |
+| **`@ConditionalOnClass`** | 이 클래스가 클래스패스에 있을 때만 켜라 |
+| **`@ConditionalOnMissingBean`** | 같은 타입의 Bean 이 없을 때만 만들라 — 서비스가 정의하면 물러남 |
+| **트랜잭션** | 여러 쓰기를 한 덩어리로. 전부 되거나 전부 안 되거나 |
+| **`MANDATORY`** | 트랜잭션이 이미 있어야만 실행. 없으면 즉시 예외 |
+| **`REQUIRES_NEW`** | 기존 트랜잭션과 별개로 새 트랜잭션을 열고 먼저 커밋 |
+| **이벤트** | "무슨 일이 있었다" 를 Kafka 에 남기는 것. 직접 호출의 대안 |
+| **토픽** | Kafka 의 우체통 하나. `place.updated` |
+| **봉투 (`EventEnvelope`)** | 모든 이벤트를 감싸는 공통 껍데기. `eventId` · `data` … |
+| **Outbox** | 이벤트를 DB 에 먼저 저장하고 커밋 뒤 보내는 패턴 |
+| **Inbox** | 같은 이벤트를 두 번 처리하지 않게 처리 이력을 남기는 패턴 |
+| **Relay** | outbox 표에서 안 나간 건을 주기적으로 주워 보내는 안전망 |
+| **DLQ** | 재시도가 끝난 메시지가 가는 토픽 |
+| **멱등** | 여러 번 처리해도 결과가 한 번과 같음 |
+| **`FOR UPDATE SKIP LOCKED`** | 행을 잠그되 이미 잠긴 행은 건너뜀. 중복 발행 방지 |
+| **`SecurityContext`** | 이 요청의 사용자 정보를 담아 두는 자리 |
+| **principal** | 인증된 사용자. 우리는 `CustomUserPrincipal(accountId, role)` |
+| **감사 (Auditing)** | 누가 언제 만들고 고쳤는지 자동으로 기록. `BaseEntity` 6컬럼 |
+| **소프트 딜리트** | 행을 지우지 않고 `deleted_at` 만 채움 |
+| **Flyway** | DB 스키마를 번호 붙인 SQL 로 관리. `V1__outbox.sql` |
+| **publish** | 이 모듈을 GitHub Packages 에 올리는 것. 버전 하나를 영구 소모 |
+| **`mavenLocal()`** | 내 컴퓨터의 임시 저장소. publish 전 검증용 |
