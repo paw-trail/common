@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="760" viewBox="0 0 1500 760" font-family="Noto Sans CJK KR, 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif">
+<defs><marker id="ah-374151" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#374151"/></marker><marker id="as-374151" markerWidth="11" markerHeight="9" refX="1" refY="4.5" orient="auto"><path d="M11,0 L0,4.5 L11,9 z" fill="#374151"/></marker><marker id="ah-3B82F6" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#3B82F6"/></marker><marker id="as-3B82F6" markerWidth="11" markerHeight="9" refX="1" refY="4.5" orient="auto"><path d="M11,0 L0,4.5 L11,9 z" fill="#3B82F6"/></marker><marker id="ah-6366F1" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#6366F1"/></marker><marker id="as-6366F1" markerWidth="11" markerHeight="9" refX="1" refY="4.5" orient="auto"><path d="M11,0 L0,4.5 L11,9 z" fill="#6366F1"/></marker><marker id="ah-16A34A" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#16A34A"/></marker><marker id="as-16A34A" markerWidth="11" markerHeight="9" refX="1" refY="4.5" orient="auto"><path d="M11,0 L0,4.5 L11,9 z" fill="#16A34A"/></marker><marker id="ah-F97316" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#F97316"/></marker><marker id="as-F97316" markerWidth="11" markerHeight="9" refX="1" refY="4.5" orient="auto"><path d="M11,0 L0,4.5 L11,9 z" fill="#F97316"/></marker><marker id="ah-A855F7" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#A855F7"/></marker><marker id="as-A855F7" markerWidth="11" markerHeight="9" refX="1" refY="4.5" orient="auto"><path d="M11,0 L0,4.5 L11,9 z" fill="#A855F7"/></marker><marker id="ah-9CA3AF" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#9CA3AF"/></marker><marker id="as-9CA3AF" markerWidth="11" markerHeight="9" refX="1" refY="4.5" orient="auto"><path d="M11,0 L0,4.5 L11,9 z" fill="#9CA3AF"/></marker><marker id="ah-D97706" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#D97706"/></marker><marker id="as-D97706" markerWidth="11" markerHeight="9" refX="1" refY="4.5" orient="auto"><path d="M11,0 L0,4.5 L11,9 z" fill="#D97706"/></marker><marker id="ah-111827" markerWidth="11" markerHeight="9" refX="10" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 z" fill="#111827"/></marker><marker id="as-111827" markerWidth="11" markerHeight="9" refX="1" refY="4.5" orient="auto"><path d="M11,0 L0,4.5 L11,9 z" fill="#111827"/></marker></defs><rect width="1500" height="760" fill="#FFFFFF"/>
+<rect x="572.0" y="317.0" width="356" height="126" rx="18" fill="none" stroke="#D97706" stroke-width="3" opacity="0.5"/>
+<rect x="580.0" y="325.0" width="340" height="110" rx="12" fill="#FEF3C7" stroke="#D97706" stroke-width="3.5"/>
+<text x="750" y="358" font-size="22" font-weight="bold" text-anchor="middle" fill="#111827">common  0.0.9</text>
+<text x="750" y="378" font-size="12" font-weight="normal" text-anchor="middle" fill="#4B5563">자동 설정 6개 · Flyway V1 · V2</text>
+<text x="750" y="394" font-size="12" font-weight="normal" text-anchor="middle" fill="#4B5563">실행되지 않는 jar</text>
+<text x="572.0" y="311.0" font-size="13" font-weight="bold" text-anchor="start" fill="#D97706">이 레포</text>
+<rect x="590.0" y="80.0" width="320" height="80" rx="12" fill="#F3F4F6" stroke="#9CA3AF" stroke-width="2.2"/>
+<text x="750" y="106" font-size="17" font-weight="bold" text-anchor="middle" fill="#111827">GitHub Packages</text>
+<text x="750" y="126" font-size="12" font-weight="normal" text-anchor="middle" fill="#4B5563">publish 로 올림 · 덮어쓰기 불가</text>
+<rect x="1140.0" y="185.0" width="320" height="110" rx="12" fill="#DCFCE7" stroke="#22C55E" stroke-width="2.2"/>
+<text x="1300" y="218" font-size="17" font-weight="bold" text-anchor="middle" fill="#111827">도메인 서비스 14개</text>
+<text x="1300" y="238" font-size="12" font-weight="normal" text-anchor="middle" fill="#4B5563">build.gradle 한 줄로 받음</text>
+<text x="1300" y="254" font-size="12" font-weight="normal" text-anchor="middle" fill="#4B5563">응답 형식 · 예외 · 인증 · 감사 · Outbox</text>
+<rect x="1140.0" y="475.0" width="320" height="90" rx="12" fill="#F0FDF4" stroke="#86EFAC" stroke-width="2.2"/>
+<text x="1300" y="498" font-size="17" font-weight="bold" text-anchor="middle" fill="#111827">무상태 서비스 3개</text>
+<text x="1300" y="518" font-size="12" font-weight="normal" text-anchor="middle" fill="#4B5563">verdict · congestion · route</text>
+<text x="1300" y="534" font-size="12" font-weight="normal" text-anchor="middle" fill="#4B5563">JPA 자동 설정만 안 켜짐</text>
+<rect x="40.0" y="185.0" width="280" height="110" rx="12" fill="#E0E7FF" stroke="#6366F1" stroke-width="2.2"/>
+<text x="180" y="218" font-size="17" font-weight="bold" text-anchor="middle" fill="#111827">플랫폼 3개</text>
+<text x="180" y="238" font-size="12" font-weight="normal" text-anchor="middle" fill="#4B5563">gateway · eureka · config-server</text>
+<text x="180" y="254" font-size="12" font-weight="normal" text-anchor="middle" fill="#4B5563">⛔ 안 씀 — 인프라 성격</text>
+<rect x="40.0" y="475.0" width="280" height="90" rx="12" fill="#FFEDD5" stroke="#F97316" stroke-width="2.2"/>
+<text x="180" y="498" font-size="17" font-weight="bold" text-anchor="middle" fill="#111827">PostgreSQL</text>
+<text x="180" y="518" font-size="12" font-weight="normal" text-anchor="middle" fill="#4B5563">outbox · processed_event 표</text>
+<text x="180" y="534" font-size="12" font-weight="normal" text-anchor="middle" fill="#4B5563">V1 · V2 가 만듦</text>
+<polyline points="750,325.0 750,160.0" fill="none" stroke="#D97706" stroke-width="2.4" marker-end="url(#ah-D97706)"/>
+<rect x="692" y="222" width="115" height="19" rx="4" fill="#FFFFFF" opacity="0.92"/>
+<text x="750.0" y="234.5" font-size="13" font-weight="normal" text-anchor="middle" fill="#D97706">./gradlew publish</text>
+<polyline points="910.0,120 1000,120 1000,240 1140.0,240" fill="none" stroke="#D97706" stroke-width="2.4" marker-end="url(#ah-D97706)"/>
+<rect x="928" y="168" width="145" height="19" rx="4" fill="#FFFFFF" opacity="0.92"/>
+<text x="1000" y="180" font-size="13" font-weight="normal" text-anchor="middle" fill="#D97706">commonVersion=0.0.9</text>
+<polyline points="920.0,380 1000,380 1000,240 1140.0,240" fill="none" stroke="#D97706" stroke-width="2.4" marker-end="url(#ah-D97706)"/>
+<rect x="1006" y="308" width="110" height="19" rx="4" fill="#FFFFFF" opacity="0.92"/>
+<text x="1010" y="320" font-size="13" font-weight="normal" text-anchor="start" fill="#D97706">자동 설정 6개 전부</text>
+<polyline points="920.0,380 1000,380 1000,520 1140.0,520" fill="none" stroke="#D97706" stroke-width="2.4" marker-end="url(#ah-D97706)"/>
+<rect x="1006" y="448" width="163" height="19" rx="4" fill="#FFFFFF" opacity="0.92"/>
+<text x="1010" y="460" font-size="13" font-weight="normal" text-anchor="start" fill="#D97706">Web · Security · Async 만</text>
+<polyline points="320.0,240 500,240 500,380 580.0,380" fill="none" stroke="#9CA3AF" stroke-width="2.4" marker-end="url(#ah-9CA3AF)" stroke-dasharray="7,6"/>
+<rect x="458" y="298" width="85" height="19" rx="4" fill="#FFFFFF" opacity="0.92"/>
+<text x="500" y="310" font-size="13" font-weight="normal" text-anchor="middle" fill="#9CA3AF">의존하지 않음</text>
+<polyline points="580.0,380 500,380 500,520 320.0,520" fill="none" stroke="#F97316" stroke-width="2.4" marker-end="url(#ah-F97316)"/>
+<rect x="423" y="448" width="153" height="19" rx="4" fill="#FFFFFF" opacity="0.92"/>
+<text x="500" y="460" font-size="13" font-weight="normal" text-anchor="middle" fill="#F97316">Flyway V1 · V2 (jar 안에)</text>
+<text x="40" y="720" font-size="13" font-weight="normal" text-anchor="start" fill="#4B5563">넣는 기준 = "도메인 서비스가 전부 쓰는 것" · 토픽 이름 · 도메인 에러 코드는 넣지 않음 · 서비스가 같은 타입의 Bean 을 정의하면 물러남</text>
+<text x="1476" y="748" font-size="11" text-anchor="end" fill="#9CA3AF">common 을 중심으로 · 직접 연결된 것만</text></svg>
