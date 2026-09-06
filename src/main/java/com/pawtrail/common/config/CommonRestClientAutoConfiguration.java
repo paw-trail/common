@@ -10,6 +10,7 @@ import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
 import org.springframework.boot.http.client.HttpClientSettings;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Scope;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
@@ -28,8 +29,11 @@ import org.springframework.web.client.RestClient;
  * 받는 쪽과 보내는 쪽이 대칭이 됩니다.
  * 클래스만 공통에 두고 연결은 각자 하게 하면 같은 코드가 열두 번 반복됩니다.
  *
- * 빌더가 둘인 이유는 @LoadBalanced 가 붙은 빌더로는 바깥 API 를 부를 수 없기 때문입니다.
- * 그 빌더는 주소를 서비스 이름으로 보고 유레카에서 찾으려 합니다.
+ * 빌더가 셋인 이유는 쓰임이 셋으로 갈리기 때문입니다.
+ *
+ *   defaultRestClientBuilder    아무것도 얹지 않은 맨 빌더. @Primary
+ *   internalRestClientBuilder   우리 서비스를 부를 때
+ *   externalRestClientBuilder   바깥 API 를 부를 때
  *
  * 무엇을 어디에 부르고 응답을 어떻게 다룰지는 각 서비스가 정합니다.
  * 특히 실패했을 때의 처리는 여기 두지 않습니다.
@@ -47,6 +51,49 @@ public class CommonRestClientAutoConfiguration {
     @ConditionalOnMissingBean
     public RestClientAuthInterceptor restClientAuthInterceptor() {
         return new RestClientAuthInterceptor();
+    }
+
+    /**
+     * 아무것도 얹지 않은 맨 빌더입니다. 우리 코드는 이것을 쓰지 않습니다.
+     *
+     * 이 빈이 있는 이유는 하나입니다.
+     * RestClient.Builder 를 타입으로 찾는 라이브러리에게 답을 하나로 정해 주기 위해서입니다.
+     *
+     * * 없으면 무슨 일이 나는지입니다.
+     *   유레카 클라이언트가 자기 HTTP 호출에 이 타입을 씁니다.
+     *
+     *     ObjectProvider&lt;RestClient.Builder&gt;.getIfAvailable(RestClient::builder)
+     *
+     *   후보가 0개면 기본값을 만들어 쓰고 1개면 그것을 쓰지만,
+     *   2개 이상인데 @Primary 가 없으면 NoUniqueBeanDefinitionException 을 던집니다.
+     *   0.0.10 에서 빌더를 둘 넣으면서 0개였던 자리가 2개가 되었고,
+     *   그때부터 유레카 등록과 하트비트가 매번 실패했습니다.
+     *   게이트웨이가 서비스를 못 찾아 503 이 나는데도
+     *   /actuator/health 는 UP 이라 한동안 드러나지 않았습니다.
+     *   유레카 헬스 컴포넌트가 UNKNOWN 이면 전체 판정에서 무시되기 때문입니다.
+     *
+     * * 왜 맨 빌더인지입니다.
+     *   유레카는 요청 팩터리를 자기 EurekaClientHttpRequestFactorySupplier 로 따로 넣습니다.
+     *   그래서 여기에 타임아웃을 얹어도 유레카에는 반영되지 않고,
+     *   대신 이 빌더를 쓰게 될 다른 라이브러리의 동작만 바꿉니다.
+     *   아무것도 얹지 않으면 그쪽이 스스로 만들었을 RestClient.builder() 와 같아집니다.
+     *
+     * * 왜 이름이 restClientBuilder 가 아닌지입니다.
+     *   스프링 부트의 RestClientAutoConfiguration 이 그 이름을 씁니다.
+     *   같은 이름으로 두면 BeanDefinitionOverrideException 으로 기동이 실패합니다.
+     *
+     * * 대신 치르는 것입니다.
+     *   @Primary 가 있으므로 @Qualifier 를 빠뜨리면 이 맨 빌더가 조용히 주입됩니다.
+     *   그 빌더에는 로드밸런서 인터셉터가 없어 lb:// 주소를 풀지 못하고,
+     *   기동이 아니라 실제로 호출하는 순간에 실패합니다.
+     *   빠뜨린 것이 늦게 드러나는 것을 알고 받아들인 것입니다.
+     *   provider 를 만들 때 @Qualifier 가 있는지 반드시 확인해야 합니다.
+     */
+    @Bean
+    @Primary
+    @Scope(ConfigurableBeanFactory.SCOPE_PROTOTYPE)
+    public RestClient.Builder defaultRestClientBuilder() {
+        return RestClient.builder();
     }
 
     /**
@@ -69,15 +116,13 @@ public class CommonRestClientAutoConfiguration {
      *   스프링 부트가 자기 RestClient.Builder 빈을 프로토타입으로 두는 이유도 같습니다.
      *
      * * @ConditionalOnMissingBean 을 붙이지 않습니다.
-     *   spring-boot-restclient 의 RestClientAutoConfiguration 이
-     *   같은 타입의 빈을 하나 정의합니다.
-     *   그쪽이 먼저 평가되면 이 조건이 거짓이 되어 이 빈이 아예 만들어지지 않습니다.
-     *   자동 설정 사이의 평가 순서에 기대지 않으려고 조건을 걸지 않았습니다.
+     *   같은 타입의 빈이 이미 여럿이라 조건이 언제나 거짓이 되어
+     *   이 빈이 아예 만들어지지 않습니다.
      *
-     * * @Primary 를 두지 않은 것도 의도입니다.
-     *   두면 @Qualifier 를 빠뜨렸을 때 이 빌더가 조용히 주입되는데,
-     *   바깥 API 를 부르는 자리에 들어가면 호출할 때에야 드러납니다.
-     *   둘 다 명시하게 하면 빠뜨렸을 때 기동에서 걸립니다.
+     * * 주입할 때 @Qualifier("internalRestClientBuilder") 를 반드시 붙여야 합니다.
+     *   빠뜨리면 defaultRestClientBuilder 가 조용히 들어옵니다.
+     *   롬복의 @RequiredArgsConstructor 로는 @Qualifier 를 붙일 수 없으므로
+     *   provider 는 생성자를 손으로 씁니다.
      */
     @Bean
     @LoadBalanced
@@ -104,7 +149,7 @@ public class CommonRestClientAutoConfiguration {
      * 붙이면 https://apis.data.go.kr 같은 주소를 서비스 이름으로 보고
      * 유레카에서 찾으려다 실패합니다.
      *
-     * 프로토타입인 이유는 위 빌더와 같습니다.
+     * 프로토타입인 이유와 @Qualifier 가 필요한 이유는 위 빌더와 같습니다.
      */
     @Bean
     @Scope(ConfigurableBeanFactory.SCOPE_PROTOTYPE)
@@ -134,6 +179,10 @@ public class CommonRestClientAutoConfiguration {
      * * 빌더가 프로토타입이므로 주입받는 자리마다 팩터리도 새로 만들어집니다.
      *   provider 가 셋이면 HttpClient 도 셋이고 연결 풀도 각각입니다.
      *   provider 마다 부르는 서비스가 달라 어차피 연결이 갈리므로 손해가 아닙니다.
+     *
+     * * defaultRestClientBuilder 에는 이 팩터리를 걸지 않습니다.
+     *   그 빌더를 쓰는 것은 우리 코드가 아니라 유레카 같은 라이브러리이고,
+     *   그쪽은 자기 요청 팩터리를 따로 넣기 때문입니다.
      */
     private ClientHttpRequestFactory timeoutFactory(RestClientProperties properties) {
         return ClientHttpRequestFactoryBuilder.detect()

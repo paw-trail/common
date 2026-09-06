@@ -29,7 +29,7 @@
 ```
                     [ GitHub Packages ]
                              │
-                             │  com.pawtrail:common:0.0.11  (jar)
+                             │  com.pawtrail:common:0.0.12  (jar)
                              ▼
 도메인 서비스 14개  ──▶  공통 모듈   자동 설정 7개가 조건에 맞으면 켜짐
         │                    │
@@ -71,7 +71,7 @@
 | 자동 설정 | 7개 | [2장](#2-자동-설정-7개) |
 | Flyway 스크립트 | 2개 (`V1`·`V2`) | [3-5](#3-5-messageoutbox--이벤트를-안전하게-보내기) |
 | 공통 에러 코드 | 6개 | [3-2](#3-2-exception--에러-코드-규약) |
-| 현재 버전 | **0.0.11** | [5장](#5-버전을-올리고-배포하기) |
+| 현재 버전 | **0.0.12** | [5장](#5-버전을-올리고-배포하기) |
 | 소비하는 서비스 | 도메인 14개 | 플랫폼 3개는 **안 씀** |
 
 ---
@@ -112,7 +112,7 @@
               도커 이미지가 됨                        *다른 서비스의 build.gradle 에 한 줄로 들어감
 ```
 
-**GitHub Packages 에 올려 두고 각 서비스가 내려받습니다.** `commonVersion=0.0.11` 가 그것입니다.
+**GitHub Packages 에 올려 두고 각 서비스가 내려받습니다.** `commonVersion=0.0.12` 가 그것입니다.
 
 ---
 
@@ -291,7 +291,7 @@ dependencies {
 버전은 `gradle.properties` 에 한 줄로 둡니다.
 
 ```properties
-commonVersion=0.0.11
+commonVersion=0.0.12
 ```
 
 > **최신 버전은 조직의 Packages 페이지에서 확인합니다.** 이 문서의 숫자가
@@ -466,7 +466,7 @@ DB 를 쓰는 서비스        7개 전부 켜짐        auth · user · pet · 
 | `CommonJpaAutoConfiguration` | `JpaRepository` | `AuditorProvider` + `@EnableJpaAuditing` |
 | `CommonMessagingAutoConfiguration` | `JpaRepository` + `KafkaTemplate` | `OutboxEventRecorder` · `OutboxPublisher` · `OutboxCommitListener` · `OutboxRelay` · `InboxProcessor` + `@EnableScheduling` |
 | `CommonKafkaAutoConfiguration` | `KafkaTemplate` | `RecordMessageConverter` · `KafkaSecurityInterceptor` · `DefaultErrorHandler` |
-| `CommonRestClientAutoConfiguration` | `RestClient` | `RestClientAuthInterceptor` · `internalRestClientBuilder` · `externalRestClientBuilder` |
+| `CommonRestClientAutoConfiguration` | `RestClient` | `RestClientAuthInterceptor` · `defaultRestClientBuilder` · `internalRestClientBuilder` · `externalRestClientBuilder` |
 | `CommonAsyncAutoConfiguration` | **없음** | `@EnableAsync` |
 
 ---
@@ -545,21 +545,9 @@ DB 를 쓰는 서비스        7개 전부 켜짐        auth · user · pet · 
 
 ---
 
-**빌더 2개만 예외입니다. 일부러 안 붙였습니다.**
+**`RestClient.Builder` 빌더 3개만 예외입니다. 일부러 안 붙였습니다.**
 
-`internalRestClientBuilder` 와 `externalRestClientBuilder` 입니다.
-
-| | 조건을 걸면 | 안 걸면 |
-|---|---|---|
-| 같은 타입의 다른 빈 | 부트가 `RestClient.Builder` 를 하나 정의합니다 | 같습니다 |
-| 그쪽이 먼저 평가되면 | 조건이 거짓이 되어 **우리 빈이 아예 안 만들어집니다** | 항상 만들어집니다 |
-| 그쪽이 나중에 평가되면 | 우리 빈이 만들어집니다 | 같습니다 |
-
-**결과가 자동 설정 사이의 평가 순서에 달리게 됩니다.** 그 순서에 기대지 않으려고
-조건을 걸지 않았습니다.
-
-> **같은 타입의 빈이 여럿이므로 주입은 언제나 `@Qualifier` 로 합니다.**
-> [4-7](#4-7-다른-서비스-부르기) 에 그 형태가 있습니다.
+같은 타입의 빈이 이미 여럿이라 **조건이 언제나 거짓이 되어 아무것도 안 만들어집니다.**
 
 > **`RecordMessageConverter` 와 결론이 정반대라 헷갈리기 쉬운 자리입니다.**
 >
@@ -567,14 +555,82 @@ DB 를 쓰는 서비스        7개 전부 켜짐        auth · user · pet · 
 > **만들지 않는 것**이 규칙이고, 이쪽은 **조건을 붙이지 않는 것**이 답입니다.
 >
 > 기준은 하나입니다. **그 타입의 빈을 이미 누가 만들어 두느냐입니다.**
-> 아무도 안 만들면 `@ConditionalOnMissingBean` 이 안전장치로 동작하고,
-> 이미 있으면 그 조건이 우리 빈을 죽입니다.
 
 <br><br>
 
 ---
 
-### 2-4. 무상태 서비스에서 안 켜지는 것
+### 2-4. `RestClient.Builder` 가 셋인 이유
+
+**쓰임이 셋으로 갈립니다.** 우리 코드가 쓰는 것은 아래 둘뿐입니다.
+
+| 빈 | 무엇이 붙어 있나 | 누가 쓰나 |
+|---|---|---|
+| `defaultRestClientBuilder` | **아무것도 없음.** `@Primary` | 유레카처럼 **타입으로 찾는 라이브러리** |
+| `internalRestClientBuilder` | `@LoadBalanced` · 인증 인터셉터 · 시간 제한 | 우리 서비스를 부르는 provider |
+| `externalRestClientBuilder` | 시간 제한 | 바깥 API 를 부르는 provider |
+
+---
+
+**`defaultRestClientBuilder` 가 없으면 유레카가 깨집니다.**
+
+유레카 클라이언트는 자기 HTTP 호출에 이 타입을 씁니다.
+
+```java
+ObjectProvider<RestClient.Builder>.getIfAvailable(RestClient::builder)
+```
+
+| 컨테이너의 후보 수 | 결과 |
+|---|---|
+| 0개 | 기본값을 만들어 씀 |
+| 1개 | 그것을 씀 |
+| 2개 이상 · `@Primary` 없음 | **`NoUniqueBeanDefinitionException`** |
+
+`0.0.10` 에서 빌더를 둘 넣으면서 0개였던 자리가 2개가 되었고, 그때부터
+**유레카 등록과 하트비트가 매번 실패했습니다.**
+
+```
+등록 실패  ──▶  유레카에 서비스가 없음  ──▶  게이트웨이가 lb:// 를 못 풂  ──▶  503
+```
+
+> **`/actuator/health` 는 그동안에도 `UP` 이었습니다.** 유레카 헬스 컴포넌트가
+> `UNKNOWN` 이면 스프링이 전체 판정에서 무시하기 때문입니다. `0.0.12` 에서
+> `@Primary` 인 맨 빌더를 더해 후보를 하나로 정해 주었습니다.
+
+---
+
+**맨 빌더에 아무것도 얹지 않은 것은 의도입니다.**
+
+유레카는 요청 팩터리를 자기 `EurekaClientHttpRequestFactorySupplier` 로 따로 넣습니다.
+여기에 시간 제한을 얹어도 **유레카에는 반영되지 않고**, 대신 이 빌더를 쓰게 될 다른
+라이브러리의 동작만 바꿉니다. 비워 두면 그쪽이 스스로 만들었을 것과 같아집니다.
+
+> **이름이 `restClientBuilder` 가 아닌 이유** — 스프링 부트의
+> `RestClientAutoConfiguration` 이 그 이름을 씁니다. 겹치면
+> `BeanDefinitionOverrideException` 으로 기동이 실패합니다.
+
+---
+
+**대신 치르는 것이 있습니다.**
+
+| | `@Primary` 가 없을 때 | 지금 |
+|---|---|---|
+| `@Qualifier` 를 빠뜨리면 | 기동에서 걸림 | **맨 빌더가 조용히 주입됨** |
+| 그것이 드러나는 때 | 앱 시작 시 | `lb://` 를 못 풀어 **호출할 때** |
+
+```
+provider 에서 @Qualifier 누락  ──▶  맨 빌더 주입  ──▶  baseUrl("lb://place-service")
+                                                  ──▶  호출 시 스킴 lb 를 모름
+```
+
+**알고 받아들인 것입니다.** provider 를 만들 때 `@Qualifier` 가 있는지 반드시
+확인합니다. 형태는 [4-7](#4-7-다른-서비스-부르기) 에 있습니다.
+
+<br><br>
+
+---
+
+### 2-5. 무상태 서비스에서 안 켜지는 것
 
 `verdict` · `congestion` · `route` 가 JPA 스타터를 지우면 **셋이 함께 꺼집니다.**
 
@@ -1526,6 +1582,10 @@ public void onPlaceUpdated(EventEnvelope<PlaceUpdatedMessage> envelope) {
 | 주소를 푸는 것 | 유레카 | 설정에 박힌 고정 주소 |
 | 인증 헤더 | `X-User-Id` · `X-User-Role` 을 실음 | **싣지 않음** |
 
+> **셋째 빈 `defaultRestClientBuilder` 는 우리 코드가 쓰지 않습니다.**
+> 유레카처럼 타입으로 찾는 라이브러리를 위한 것입니다. 이유는
+> [2-4](#2-4-restclientbuilder-가-셋인-이유) 에 있습니다.
+
 > **바깥 시스템에 우리 사용자 식별자를 보낼 이유가 없습니다.** 그래서 빌더가
 > 둘입니다. `@LoadBalanced` 가 붙은 빌더는 `https://...` 를 서비스 이름으로 보고
 > 유레카에서 찾으려다 실패하기도 합니다.
@@ -1553,9 +1613,10 @@ public class PolicyProviderImpl implements PolicyProvider {
 > `@Qualifier` 가 붙지 않아 **어느 빌더가 들어올지 정해지지 않습니다.**
 > 생성자를 손으로 씁니다.
 
-> **`@Primary` 를 둔 빌더가 없는 것은 의도입니다.** 두면 `@Qualifier` 를
-> 빠뜨렸을 때 하나가 조용히 주입되는데, **바깥 API 를 부르는 자리에 internal 이
-> 들어가면 호출할 때에야 드러납니다.** 지금은 빠뜨리면 기동에서 걸립니다.
+> **`@Qualifier` 를 빠뜨리면 `@Primary` 인 맨 빌더가 조용히 주입됩니다.**
+> 그 빌더에는 로드밸런서 인터셉터가 없어 `lb://` 를 풀지 못하고, **기동이 아니라
+> 실제로 호출하는 순간에 실패합니다.** 늦게 드러나는 것을 알고 받아들인 것이라
+> 여기를 쓸 때 반드시 확인합니다.
 
 ---
 
@@ -1736,7 +1797,7 @@ service-template/README.md                1-4-2 · 7-1 · 6-4 표      세 곳
 ### 5-4. jar 안을 확인합니다
 
 ```bash
-jar tf build/libs/common-0.0.11.jar | grep -E "AutoConfiguration.imports|db/migration|Common.*AutoConfiguration.class"
+jar tf build/libs/common-0.0.12.jar | grep -E "AutoConfiguration.imports|db/migration|Common.*AutoConfiguration.class"
 ```
 
 **들어가야 하는 것입니다.**
@@ -2194,6 +2255,7 @@ W3C 표준 헤더      라이브러리가     traceparent
 | `0.0.9` | `findGivenUpMessages` 로 교체 | 주석과 쿼리가 어긋나 있었음 |
 | `0.0.10` | **서비스 간 호출 기반** | 인터셉터가 클래스만 있고 어디에도 안 붙어 있었음 |
 | `0.0.11` | 빌더를 프로토타입으로 · 요청 팩터리를 `detect()` 로 | 빌더가 싱글턴이라 `baseUrl` 이 서로 덮었음 |
+| `0.0.12` | **`@Primary` 인 맨 빌더 추가** | 빌더가 둘이라 유레카가 하나를 못 골랐음 |
 
 ---
 
@@ -2228,6 +2290,20 @@ BaseEntity 를 @MappedSuperclass 로 제공하면서 그 Q 클래스를 안 만�
 
 **provider 를 하나도 만들지 않은 시점이라 드러나기 전에 잡았습니다.**
 
+---
+
+**`0.0.12` 는 `0.0.10` 의 결함이 뒤늦게 드러난 것입니다.**
+
+빌더를 둘 넣은 것이 `0.0.10` 이고 유레카가 그때부터 깨져 있었으나, **auth 는
+`0.0.9` 에 머물러 있었고 user 는 아직 게이트웨이를 거쳐 부르지 않아** 아무도
+알아채지 못했습니다. `0.0.11` 로 auth 를 올리면서 증상이 드러났습니다.
+
+```
+0.0.10  빌더 2개  ──▶  user 만 조용히 등록 실패        아무도 안 봄
+0.0.11  auth 도 올림  ──▶  게이트웨이 503 · 유레카에 AUTH-SERVICE 없음
+0.0.12  @Primary 맨 빌더  ──▶  registration status: 204
+```
+
 요청 팩터리를 함께 바꾼 것은 **`SimpleClientHttpRequestFactory` 가 PATCH 를
 보내지 못하기 때문**입니다. `HttpURLConnection` 기반이라 그렇습니다. 연결을
 재사용하지 않는 것은 규모가 커질 때의 문제지만 **PATCH 는 쓰려는 순간 막히는
@@ -2251,6 +2327,8 @@ BaseEntity 를 @MappedSuperclass 로 제공하면서 그 Q 클래스를 안 만�
 ✅ jar 내용                            imports · 자동 설정 7개 · V1 · V2 · QBaseEntity
 ✅ 0.0.11 기동                         user · auth 둘 다 UP
                                       남을 안 부르는 auth 에서도 새 자동 설정이 정상
+✅ 0.0.12 유레카 등록                   registration status: 204
+                                      /eureka/apps 에 USER-SERVICE 가 뜸
 ```
 
 <br><br>
