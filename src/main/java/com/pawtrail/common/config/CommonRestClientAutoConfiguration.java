@@ -1,14 +1,17 @@
 package com.pawtrail.common.config;
 
 import com.pawtrail.common.security.interceptor.RestClientAuthInterceptor;
+import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
+import org.springframework.boot.http.client.HttpClientSettings;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Scope;
 import org.springframework.http.client.ClientHttpRequestFactory;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 /**
@@ -56,21 +59,29 @@ public class CommonRestClientAutoConfiguration {
      * 없으면 받는 쪽의 HeaderAuthenticationFilter 가 심을 값이 없어
      * 그쪽에서 만든 엔티티의 createdBy 가 전부 SYSTEM 으로 남습니다.
      *
-     * @ConditionalOnMissingBean 을 붙이지 않습니다.
-     * 스프링 부트가 이미 RestClient.Builder 빈을 하나 만들어 두므로
-     * 붙이면 조건이 거짓이 되어 이 빈이 아예 만들어지지 않습니다.
+     * * 프로토타입인 이유입니다.
+     *   RestClient.Builder 는 자기 자신을 고치고 자기를 돌려주는 물건입니다.
+     *   싱글턴으로 두면 주입받은 모두가 같은 인스턴스를 나눠 쓰게 되어
+     *   한 provider 가 baseUrl 을 걸면 다른 provider 의 것까지 바뀝니다.
+     *   생성자에서 걸자마자 build() 하면 결과는 맞지만 그것은 순서에 기댄 것이고,
+     *   빌더를 필드에 들고 있다가 늦게 build() 하는 코드가 하나 생기면
+     *   오류 없이 엉뚱한 서비스로 요청이 갑니다.
+     *   스프링 부트가 자기 RestClient.Builder 빈을 프로토타입으로 두는 이유도 같습니다.
      *
-     * 그래서 이 타입의 빈이 셋 공존합니다.
-     * 부트의 restClientBuilder, 여기의 둘입니다.
-     * 이름이 다르므로 서로 죽이지 않고, 주입할 때 @Qualifier 로 고릅니다.
+     * * @ConditionalOnMissingBean 을 붙이지 않습니다.
+     *   spring-boot-restclient 의 RestClientAutoConfiguration 이
+     *   같은 타입의 빈을 하나 정의합니다.
+     *   그쪽이 먼저 평가되면 이 조건이 거짓이 되어 이 빈이 아예 만들어지지 않습니다.
+     *   자동 설정 사이의 평가 순서에 기대지 않으려고 조건을 걸지 않았습니다.
      *
-     * @Primary 를 두지 않은 것도 의도입니다.
-     * 두면 @Qualifier 를 빠뜨렸을 때 이 빌더가 조용히 주입되는데,
-     * 바깥 API 를 부르는 자리에 들어가면 호출할 때에야 드러납니다.
-     * 둘 다 명시하게 하면 빠뜨렸을 때 기동에서 걸립니다.
+     * * @Primary 를 두지 않은 것도 의도입니다.
+     *   두면 @Qualifier 를 빠뜨렸을 때 이 빌더가 조용히 주입되는데,
+     *   바깥 API 를 부르는 자리에 들어가면 호출할 때에야 드러납니다.
+     *   둘 다 명시하게 하면 빠뜨렸을 때 기동에서 걸립니다.
      */
     @Bean
     @LoadBalanced
+    @Scope(ConfigurableBeanFactory.SCOPE_PROTOTYPE)
     public RestClient.Builder internalRestClientBuilder(
             RestClientAuthInterceptor authInterceptor,
             RestClientProperties properties) {
@@ -92,8 +103,11 @@ public class CommonRestClientAutoConfiguration {
      * @LoadBalanced 도 붙이지 않습니다.
      * 붙이면 https://apis.data.go.kr 같은 주소를 서비스 이름으로 보고
      * 유레카에서 찾으려다 실패합니다.
+     *
+     * 프로토타입인 이유는 위 빌더와 같습니다.
      */
     @Bean
+    @Scope(ConfigurableBeanFactory.SCOPE_PROTOTYPE)
     public RestClient.Builder externalRestClientBuilder(RestClientProperties properties) {
         return RestClient.builder()
                 .requestFactory(timeoutFactory(properties));
@@ -102,24 +116,28 @@ public class CommonRestClientAutoConfiguration {
     /**
      * 시간 제한을 건 요청 팩터리를 만듭니다.
      *
-     * SimpleClientHttpRequestFactory 는 java.net.HttpURLConnection 을 씁니다.
-     * 커넥션 풀이 없어 요청마다 연결을 새로 맺습니다.
+     * detect() 가 클래스패스를 보고 구현을 고릅니다.
+     * httpComponents → jetty → reactor → jdk → simple 순으로 보는데,
+     * jdk 의 판단 근거인 java.net.http.HttpClient 는 JDK 11 부터 표준이라
+     * 아무 의존성도 더하지 않은 지금은 항상 jdk 가 골라집니다.
+     * HttpURLConnection 을 쓰는 simple 과 달리 연결을 재사용하고 PATCH 도 보냅니다.
      *
-     * 부트가 클래스패스를 보고 구현을 골라 주는 빌더가 따로 있으나
-     * Boot 4.1.1 · Spring 7.0.9 에서는 spring-web 에도 spring-boot 에도
-     * 그 클래스가 없어 쓸 수 없었습니다. jar 안을 직접 확인했습니다.
+     * 나중에 서비스가 httpclient5 를 물면 그 서비스에서만 httpComponents 로 바뀝니다.
+     * 이 코드는 고치지 않아도 됩니다.
      *
-     * 커넥션 풀이 필요해지면 HttpComponentsClientHttpRequestFactory 로 바꾸고
-     * httpclient5 의존성을 더하면 됩니다.
-     * 빌더가 이 한 곳에 모여 있으므로 여기만 고치면 열두 서비스에 함께 반영됩니다.
+     * * spring.http.client.* 로 설정된 빌더 빈을 주입받지 않고 직접 detect() 합니다.
+     *   시간 제한을 고치는 창구를 app.rest-client 하나로 두기 위해서입니다.
+     *   빈을 받으면 같은 값을 두 곳에서 줄 수 있게 되고
+     *   어느 쪽이 이기는지를 매번 설명해야 합니다.
+     *   리다이렉트나 SSL 설정이 필요해지면 그때 빈을 받는 쪽으로 넓힙니다.
      *
-     * 빌더 둘이 팩터리를 각각 만듭니다.
-     * 하나를 공유하면 한쪽에서 설정을 바꿨을 때 다른 쪽까지 따라 바뀝니다.
+     * * 빌더가 프로토타입이므로 주입받는 자리마다 팩터리도 새로 만들어집니다.
+     *   provider 가 셋이면 HttpClient 도 셋이고 연결 풀도 각각입니다.
+     *   provider 마다 부르는 서비스가 달라 어차피 연결이 갈리므로 손해가 아닙니다.
      */
     private ClientHttpRequestFactory timeoutFactory(RestClientProperties properties) {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(properties.connectTimeout());
-        factory.setReadTimeout(properties.readTimeout());
-        return factory;
+        return ClientHttpRequestFactoryBuilder.detect()
+                .build(HttpClientSettings.defaults()
+                        .withTimeouts(properties.connectTimeout(), properties.readTimeout()));
     }
 }

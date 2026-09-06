@@ -6,7 +6,7 @@ plugins {
 }
 
 group = 'com.pawtrail'
-version = '0.0.10'
+version = '0.0.11'
 
 java {
     toolchain {
@@ -54,6 +54,19 @@ dependencies {
     // 2.1.0 은 logback-classic 1.6.1 을 요구하는데 Boot 4.1.1 이 물고 오는 것은 1.5.38 이라
     // 2.0 라인을 씀
     api 'com.github.loki4j:loki-logback-appender:2.0.3'
+
+    // ── 서비스 간 호출 ────────────────────────────────────────
+    // 위 로깅과 같은 이유로 api 임. 서비스까지 전파시킴
+    //
+    // RestClient 자체는 spring-web 에 있어 starter-webmvc 만으로 쓸 수 있으나
+    // 요청 팩터리를 고르는 ClientHttpRequestFactoryBuilder 는
+    // spring-boot-http-client 에 있고 그 모듈은 starter-webmvc 로 딸려오지 않음
+    // spring-boot-restclient 가 그것을 api 로 물고 있어 이 한 줄이면 됨
+    //
+    // compileOnly 로 두면 서비스 런타임에 없어
+    // CommonRestClientAutoConfiguration 이 로딩되는 순간 NoClassDefFoundError 로 죽음
+    // 서비스마다 한 줄씩 넣게 하면 빠뜨린 서비스가 기동에서 죽고, 그 줄이 17개로 늘어남
+    api 'org.springframework.boot:spring-boot-restclient'
 
     // ── 아래는 전부 compileOnly 임 ────────────────────────────
     // implementation 으로 두면 공통 모듈을 쓰는 순간 JPA 와 Kafka 가 함께 딸려 들어와
