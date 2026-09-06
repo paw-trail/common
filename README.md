@@ -29,14 +29,15 @@
 ```
                     [ GitHub Packages ]
                              │
-                             │  com.pawtrail:common:0.0.9  (jar)
+                             │  com.pawtrail:common:0.0.11  (jar)
                              ▼
-도메인 서비스 14개  ──▶  공통 모듈   자동 설정 6개가 조건에 맞으면 켜짐
+도메인 서비스 14개  ──▶  공통 모듈   자동 설정 7개가 조건에 맞으면 켜짐
         │                    │
         │                    ├──▶  응답 형식 · 예외 처리
         │                    ├──▶  인증 헤더 → SecurityContext
         │                    ├──▶  BaseEntity · 감사 컬럼
         │                    ├──▶  Outbox · Inbox
+        │                    ├──▶  다른 서비스를 부르는 RestClient 빌더
         │                    └──▶  Flyway V1 · V2
         │
         └──▶  각자 도메인 코드만 씀
@@ -66,11 +67,11 @@
 
 | | 값 | 어디에 |
 |---|---|---|
-| 자바 파일 | **34개** | [3장](#3-무엇이-들어-있나) |
-| 자동 설정 | 6개 | [2장](#2-자동-설정-6개) |
+| 자바 파일 | **36개** | [3장](#3-무엇이-들어-있나) |
+| 자동 설정 | 7개 | [2장](#2-자동-설정-7개) |
 | Flyway 스크립트 | 2개 (`V1`·`V2`) | [3-5](#3-5-messageoutbox--이벤트를-안전하게-보내기) |
 | 공통 에러 코드 | 6개 | [3-2](#3-2-exception--에러-코드-규약) |
-| 현재 버전 | **0.0.9** | [5장](#5-버전을-올리고-배포하기) |
+| 현재 버전 | **0.0.11** | [5장](#5-버전을-올리고-배포하기) |
 | 소비하는 서비스 | 도메인 14개 | 플랫폼 3개는 **안 씀** |
 
 ---
@@ -111,7 +112,7 @@
               도커 이미지가 됨                        *다른 서비스의 build.gradle 에 한 줄로 들어감
 ```
 
-**GitHub Packages 에 올려 두고 각 서비스가 내려받습니다.** `commonVersion=0.0.9` 가 그것입니다.
+**GitHub Packages 에 올려 두고 각 서비스가 내려받습니다.** `commonVersion=0.0.11` 가 그것입니다.
 
 ---
 
@@ -185,7 +186,7 @@ auth 는 user 가 떠 있는지, 몇 개인지, 어디 있는지 몰라도 됩�
 | 지금 하려는 일 | 볼 곳 |
 |---|---|
 | 새 서비스에 붙이려 한다 | [1장](#1-서비스에-붙이기) |
-| 자동 설정이 왜 안 켜지는지 모르겠다 | [2장](#2-자동-설정-6개) → [6-1](#6-1-자동-설정이-안-켜질-때) |
+| 자동 설정이 왜 안 켜지는지 모르겠다 | [2장](#2-자동-설정-7개) → [6-1](#6-1-자동-설정이-안-켜질-때) |
 | 무엇이 들어 있는지 | [3장](#3-무엇이-들어-있나) |
 | 코드에서 어떻게 쓰는지 | [4장](#4-쓰는-법) |
 | 공통 모듈을 고쳐 배포해야 한다 | [5장](#5-버전을-올리고-배포하기) |
@@ -239,7 +240,7 @@ auth 는 user 가 떠 있는지, 몇 개인지, 어디 있는지 몰라도 됩�
 ④ config 에 spring.flyway.locations
         │      classpath:db/migration/common,classpath:db/migration/service
         ▼
-⑤ 기동                                     자동 설정 6개가 조건을 보고 켜짐
+⑤ 기동                                     자동 설정 7개가 조건을 보고 켜짐
 ```
 
 <br><br>
@@ -274,10 +275,23 @@ dependencies {
 }
 ```
 
+---
+
+**공통 모듈이 함께 물려주는 것이 둘 있습니다.** 서비스가 따로 적지 않아도 됩니다.
+
+| 딸려오는 것 | 무엇에 쓰나 |
+|---|---|
+| `loki-logback-appender` | 로그를 Loki 로 보냄. 전 서비스가 예외 없이 씀 |
+| `spring-boot-restclient` | 다른 서비스를 부를 때 쓰는 요청 팩터리 |
+
+> **나머지 의존성은 `compileOnly` 라 딸려오지 않습니다.** JPA 를 안 쓰는 서비스에
+> JPA 가 들어가면 조건부 로딩을 해둔 의미가 없어지기 때문입니다.
+> **이 둘만 `api` 인 이유는 빠뜨렸을 때 서비스가 조용히 또는 즉시 깨지기 때문입니다.**
+
 버전은 `gradle.properties` 에 한 줄로 둡니다.
 
 ```properties
-commonVersion=0.0.9
+commonVersion=0.0.11
 ```
 
 > **최신 버전은 조직의 Packages 페이지에서 확인합니다.** 이 문서의 숫자가
@@ -417,7 +431,7 @@ TraceIdResponseAdvice   traceId 가 채워짐
 
 ---
 
-## 2. 자동 설정 6개
+## 2. 자동 설정 7개
 
 **서비스가 아무것도 등록하지 않아도 켜집니다.** 클래스패스에 무엇이 있는지를 보고
 스프링이 판단합니다.
@@ -430,11 +444,12 @@ TraceIdResponseAdvice   traceId 가 채워짐
 spring-data-jpa                   ──▶  CommonJpaAutoConfiguration
 spring-data-jpa + spring-kafka    ──▶  CommonMessagingAutoConfiguration
 spring-kafka                      ──▶  CommonKafkaAutoConfiguration
+spring-web                        ──▶  CommonRestClientAutoConfiguration
 (조건 없음)                        ──▶  CommonAsyncAutoConfiguration
 
 
-DB 를 쓰는 서비스        6개 전부 켜짐        auth · user · pet · place · policy ...
-무상태 서비스            Web · Security · Async 만    verdict · congestion · route
+DB 를 쓰는 서비스        7개 전부 켜짐        auth · user · pet · place · policy ...
+무상태 서비스            Web · Security · RestClient · Async    verdict · congestion · route
 게이트웨이               ⛔ 애초에 안 씀 (플랫폼 3개)
 ```
 
@@ -442,7 +457,7 @@ DB 를 쓰는 서비스        6개 전부 켜짐        auth · user · pet · 
 
 ---
 
-### 2-1. 여섯 개가 하는 일
+### 2-1. 일곱 개가 하는 일
 
 | 자동 설정 | 조건 | 등록하는 Bean |
 |---|---|---|
@@ -451,6 +466,7 @@ DB 를 쓰는 서비스        6개 전부 켜짐        auth · user · pet · 
 | `CommonJpaAutoConfiguration` | `JpaRepository` | `AuditorProvider` + `@EnableJpaAuditing` |
 | `CommonMessagingAutoConfiguration` | `JpaRepository` + `KafkaTemplate` | `OutboxEventRecorder` · `OutboxPublisher` · `OutboxCommitListener` · `OutboxRelay` · `InboxProcessor` + `@EnableScheduling` |
 | `CommonKafkaAutoConfiguration` | `KafkaTemplate` | `RecordMessageConverter` · `KafkaSecurityInterceptor` · `DefaultErrorHandler` |
+| `CommonRestClientAutoConfiguration` | `RestClient` | `RestClientAuthInterceptor` · `internalRestClientBuilder` · `externalRestClientBuilder` |
 | `CommonAsyncAutoConfiguration` | **없음** | `@EnableAsync` |
 
 ---
@@ -504,7 +520,7 @@ DB 를 쓰는 서비스        6개 전부 켜짐        auth · user · pet · 
 
 ### 2-3. 서비스가 같은 타입을 정의하면 물러납니다
 
-**모든 `@Bean` 에 `@ConditionalOnMissingBean` 이 붙어 있습니다.**
+**대부분의 `@Bean` 에 `@ConditionalOnMissingBean` 이 붙어 있습니다.**
 
 ```
 서비스가 자기 SecurityFilterChain 을 정의
@@ -525,7 +541,34 @@ DB 를 쓰는 서비스        6개 전부 켜짐        auth · user · pet · 
 
 > **`@ConditionalOnMissingBean` 은 자동 설정 클래스에서만 신뢰할 수 있습니다.**
 > 일반 `@Configuration` 은 사용자 빈과의 처리 순서가 보장되지 않아 조건이 뒤집힐 수
-> 있습니다. 그래서 여섯 개가 전부 `@AutoConfiguration` 입니다.
+> 있습니다. 그래서 일곱 개가 전부 `@AutoConfiguration` 입니다.
+
+---
+
+**빌더 2개만 예외입니다. 일부러 안 붙였습니다.**
+
+`internalRestClientBuilder` 와 `externalRestClientBuilder` 입니다.
+
+| | 조건을 걸면 | 안 걸면 |
+|---|---|---|
+| 같은 타입의 다른 빈 | 부트가 `RestClient.Builder` 를 하나 정의합니다 | 같습니다 |
+| 그쪽이 먼저 평가되면 | 조건이 거짓이 되어 **우리 빈이 아예 안 만들어집니다** | 항상 만들어집니다 |
+| 그쪽이 나중에 평가되면 | 우리 빈이 만들어집니다 | 같습니다 |
+
+**결과가 자동 설정 사이의 평가 순서에 달리게 됩니다.** 그 순서에 기대지 않으려고
+조건을 걸지 않았습니다.
+
+> **같은 타입의 빈이 여럿이므로 주입은 언제나 `@Qualifier` 로 합니다.**
+> [4-7](#4-7-다른-서비스-부르기) 에 그 형태가 있습니다.
+
+> **`RecordMessageConverter` 와 결론이 정반대라 헷갈리기 쉬운 자리입니다.**
+>
+> 그쪽은 *서비스가 자기 것을 만들면 빈이 둘이 되어 어느 쪽도 적용되지 않는다* 라
+> **만들지 않는 것**이 규칙이고, 이쪽은 **조건을 붙이지 않는 것**이 답입니다.
+>
+> 기준은 하나입니다. **그 타입의 빈을 이미 누가 만들어 두느냐입니다.**
+> 아무도 안 만들면 `@ConditionalOnMissingBean` 이 안전장치로 동작하고,
+> 이미 있으면 그 조건이 우리 빈을 죽입니다.
 
 <br><br>
 
@@ -549,10 +592,16 @@ ErrorCode · CustomException           에러 코드
 GlobalExceptionHandler                예외 처리
 @CurrentUser · 보안 필터               인증
 EventEnvelope · DomainEvent           이벤트 봉투 (소비할 때 필요)
+internal · external 빌더              다른 서비스와 바깥 API 호출
 ```
 
 > **`EventEnvelope` 에 조건을 안 건 이유** — verdict 도 이벤트를 받아 캐시를 지우므로
 > 봉투를 역직렬화해야 합니다. **순수 자바라 JPA 와 무관합니다.**
+
+> **`CommonRestClientAutoConfiguration` 은 무상태 서비스에서도 켜집니다.**
+> 조건이 `RestClient` 이고 그 클래스는 `spring-web` 에 있어 웹 서비스면 항상 있습니다.
+> **오히려 무상태 서비스가 더 많이 씁니다.** verdict 는 policy 를,
+> congestion 과 route 는 바깥 API 를 부릅니다.
 
 <br><br>
 
@@ -563,8 +612,9 @@ EventEnvelope · DomainEvent           이벤트 봉투 (소비할 때 필요)
 ```
 com.pawtrail.common
 │
-├── config/                              자동 설정 6개 — 2장
-│   └── Common*AutoConfiguration          조건에 맞으면 Bean 을 올림
+├── config/                              자동 설정 7개 — 2장
+│   ├── Common*AutoConfiguration          조건에 맞으면 Bean 을 올림
+│   └── RestClientProperties              app.rest-client 의 시간 제한
 │
 ├── response/                            응답 형식
 │   ├── CommonApiResponse                 {code, message, data, traceId}
@@ -584,7 +634,7 @@ com.pawtrail.common
 ├── security/                            인증 정보 다루기
 │   ├── filter/HeaderAuthenticationFilter        헤더 → SecurityContext
 │   ├── handler/CustomSecurityExceptionHandler   401 · 403 을 공통 형식으로
-│   ├── interceptor/RestClientAuthInterceptor    호출할 때 헤더를 실어 줌 (미배선)
+│   ├── interceptor/RestClientAuthInterceptor    호출할 때 헤더를 실어 줌
 │   ├── principal/CustomUserPrincipal            accountId · role
 │   └── annotation/CurrentUser                   컨트롤러에서 주입받음
 │
@@ -1460,6 +1510,100 @@ public void onPlaceUpdated(EventEnvelope<PlaceUpdatedMessage> envelope) {
 
 ---
 
+### 4-7. 다른 서비스 부르기
+
+**빌더를 주입받아 `RestClient` 를 만듭니다.** `RestClient.builder()` 를 직접 부르지
+않습니다. 그러면 인증 헤더도 `lb://` 해석도 시간 제한도 붙지 않습니다.
+
+---
+
+**빌더가 둘입니다. 부르는 대상으로 고릅니다.**
+
+| | `internalRestClientBuilder` | `externalRestClientBuilder` |
+|---|---|---|
+| 부르는 곳 | 우리 서비스 | 카카오맵 · 기상청 · 관광공사 |
+| 주소 | `lb://place-service` | `https://apis.data.go.kr` |
+| 주소를 푸는 것 | 유레카 | 설정에 박힌 고정 주소 |
+| 인증 헤더 | `X-User-Id` · `X-User-Role` 을 실음 | **싣지 않음** |
+
+> **바깥 시스템에 우리 사용자 식별자를 보낼 이유가 없습니다.** 그래서 빌더가
+> 둘입니다. `@LoadBalanced` 가 붙은 빌더는 `https://...` 를 서비스 이름으로 보고
+> 유레카에서 찾으려다 실패하기도 합니다.
+
+---
+
+**`@Qualifier` 를 반드시 붙입니다.**
+
+```java
+@Component
+public class PolicyProviderImpl implements PolicyProvider {
+
+    private final RestClient restClient;
+
+    public PolicyProviderImpl(
+            @Qualifier("internalRestClientBuilder") RestClient.Builder builder) {
+
+        // 부를 서비스의 이름을 여기서 한 번만 박아 둠
+        this.restClient = builder.baseUrl("lb://policy-service").build();
+    }
+}
+```
+
+> **`@RequiredArgsConstructor` 를 쓰지 않습니다.** 롬복이 만드는 생성자에는
+> `@Qualifier` 가 붙지 않아 **어느 빌더가 들어올지 정해지지 않습니다.**
+> 생성자를 손으로 씁니다.
+
+> **`@Primary` 를 둔 빌더가 없는 것은 의도입니다.** 두면 `@Qualifier` 를
+> 빠뜨렸을 때 하나가 조용히 주입되는데, **바깥 API 를 부르는 자리에 internal 이
+> 들어가면 호출할 때에야 드러납니다.** 지금은 빠뜨리면 기동에서 걸립니다.
+
+---
+
+**빌더는 주입받을 때마다 새로 만들어집니다.**
+
+```
+프로토타입 빈이라 주입 지점마다 다른 인스턴스가 옴
+        │
+        └── PlaceProvider 가 baseUrl 을 걸어도
+              VerdictProvider 의 빌더는 영향을 받지 않음
+```
+
+`RestClient.Builder` 는 자기를 고치고 자기를 돌려주는 물건이라 **싱글턴이었다면
+한쪽이 건 `baseUrl` 이 다른 쪽까지 바꿉니다.** 스프링 부트가 자기
+`RestClient.Builder` 빈을 프로토타입으로 두는 이유도 같습니다.
+
+---
+
+**실패했을 때의 처리는 공통 모듈이 정하지 않습니다.**
+
+같은 서비스 안에서도 API 마다 다르기 때문입니다.
+
+```
+GET /users/me 의 후기 수      실패하면 그 값만 null 로 두고 나머지를 내려보냄
+POST /visits 의 판정          실패하면 요청 자체를 실패시킴
+                              판정 스냅샷은 나중에 고칠 수단이 없어
+                              틀린 값을 남기면 안 됨
+```
+
+---
+
+**시간 제한은 `config` 저장소 1계층에 있습니다.**
+
+```yaml
+app:
+  rest-client:
+    connect-timeout: 2s
+    read-timeout: 5s
+```
+
+> **없어도 서비스는 뜹니다.** 공통 모듈에 같은 값이 기본값으로 들어 있습니다.
+> 서비스마다 달라야 하면 2계층에서 덮어씁니다. place 는 단순 조회라 짧아도 되지만
+> **LLM 을 부르는 자리는 수십 초가 걸립니다.**
+
+<br><br>
+
+---
+
 ## 5. 버전을 올리고 배포하기
 
 **이 모듈을 고칠 때만 봅니다.** 자주 있는 일이 아닙니다.
@@ -1592,7 +1736,7 @@ service-template/README.md                1-4-2 · 7-1 · 6-4 표      세 곳
 ### 5-4. jar 안을 확인합니다
 
 ```bash
-jar tf build/libs/common-0.0.9.jar | grep -E "AutoConfiguration.imports|db/migration|Common.*AutoConfiguration.class"
+jar tf build/libs/common-0.0.11.jar | grep -E "AutoConfiguration.imports|db/migration|Common.*AutoConfiguration.class"
 ```
 
 **들어가야 하는 것입니다.**
@@ -1821,7 +1965,7 @@ imports 로만 등록하면
 
 ---
 
-### 7-2. 자동 설정을 여섯으로 나눈 이유
+### 7-2. 자동 설정을 일곱으로 나눈 이유
 
 ```
 조건 축이 정확히 이 개수로 갈림
@@ -1831,6 +1975,7 @@ imports 로만 등록하면
 JPA                        Jpa
 JPA + Kafka                Messaging
 Kafka                      Kafka
+spring-web                 RestClient
 없음                        Async
 ```
 
@@ -2047,6 +2192,8 @@ W3C 표준 헤더      라이브러리가     traceparent
 | `0.0.7` | `RESOURCE_NOT_FOUND` · `AuthenticationManager` | 없는 경로가 500 · 로그에 비밀번호가 찍힘 |
 | `0.0.8` | **`FOR UPDATE SKIP LOCKED`** | 같은 이벤트가 두 번 발행됨 |
 | `0.0.9` | `findGivenUpMessages` 로 교체 | 주석과 쿼리가 어긋나 있었음 |
+| `0.0.10` | **서비스 간 호출 기반** | 인터셉터가 클래스만 있고 어디에도 안 붙어 있었음 |
+| `0.0.11` | 빌더를 프로토타입으로 · 요청 팩터리를 `detect()` 로 | 빌더가 싱글턴이라 `baseUrl` 이 서로 덮었음 |
 
 ---
 
@@ -2067,6 +2214,25 @@ BaseEntity 를 @MappedSuperclass 로 제공하면서 그 Q 클래스를 안 만�
 `0.0.5` 의 주석은 이미 *"관리자는 임계를 넘긴 건을 봐야 함"* 이라고 말하는데
 **쿼리에는 그 조건이 없어 미발행 전부를 돌려주고 있었습니다.**
 
+---
+
+**`0.0.11` 이 `0.0.10` 바로 다음에 나온 이유입니다.**
+
+```
+0.0.10 의 빌더 빈 둘에 스코프가 없어 싱글턴이었음
+        │
+        └── 주입받은 모두가 같은 인스턴스를 나눠 씀
+              PlaceProvider 가 baseUrl 을 걸면 VerdictProvider 것까지 바뀜
+              생성자에서 걸자마자 build() 하면 결과는 맞으나 순서에 기댄 것임
+```
+
+**provider 를 하나도 만들지 않은 시점이라 드러나기 전에 잡았습니다.**
+
+요청 팩터리를 함께 바꾼 것은 **`SimpleClientHttpRequestFactory` 가 PATCH 를
+보내지 못하기 때문**입니다. `HttpURLConnection` 기반이라 그렇습니다. 연결을
+재사용하지 않는 것은 규모가 커질 때의 문제지만 **PATCH 는 쓰려는 순간 막히는
+것이라 성격이 다릅니다.**
+
 <br><br>
 
 ---
@@ -2082,7 +2248,9 @@ BaseEntity 를 @MappedSuperclass 로 제공하면서 그 Q 클래스를 안 만�
 ✅ FOR UPDATE SKIP LOCKED              Kafka 를 내려 겹치는 상황을 만들어 확인
 ✅ OutboxRelay 안전망                   리스너가 실패한 건을 주워 발행
 ✅ 관리자 경로가 ADMIN 으로만 통과        auth #17 검증
-✅ jar 내용                            imports · 자동 설정 6개 · V1 · V2 · QBaseEntity
+✅ jar 내용                            imports · 자동 설정 7개 · V1 · V2 · QBaseEntity
+✅ 0.0.11 기동                         user · auth 둘 다 UP
+                                      남을 안 부르는 auth 에서도 새 자동 설정이 정상
 ```
 
 <br><br>
@@ -2143,8 +2311,7 @@ curl -X POST http://localhost:8081/api/v1/auth/login \
 
 | 무엇 | 언제 |
 |---|---|
-| **`RestClientAuthInterceptor` 배선** | **verdict · search 착수 시** — auth 는 `/internal` 호출이 0건이라 정할 수 없음 |
-| `CommonApiResponse` 역직렬화 | 같은 시점. 생성자가 private 이고 `@JsonCreator` 가 없어 읽는 쪽이 걸림 |
+| `CommonApiResponse` 역직렬화 | 받는 쪽을 처음 짜는 서비스에서. 생성자가 private 이고 `@JsonCreator` 가 없어 읽는 쪽이 걸림 |
 | 소프트 딜리트 조회 방식 | 실제 조회를 짜는 서비스에서 |
 | `processed_event` 정리 배치 | 지금 규모에서는 불필요 |
 | `max.block.ms` 를 낮출지 | 카프카가 죽었을 때 3초 타임아웃이 60초에 가려짐 |
@@ -2152,26 +2319,24 @@ curl -X POST http://localhost:8081/api/v1/auth/login \
 
 ---
 
-**`RestClientAuthInterceptor` 가 지금 아무 일도 안 합니다.**
+**`RestClientAuthInterceptor` 는 `0.0.10` 에서 배선됐습니다.**
+
+`internalRestClientBuilder` 에 붙어 있어 그 빌더로 만든 `RestClient` 로 호출하면
+`X-User-Id` 와 `X-User-Role` 이 자동으로 실립니다. 쓰는 법은
+[4-7](#4-7-다른-서비스-부르기) 에 있습니다.
+
+**다만 헤더가 실제로 건너가는지는 아직 확인되지 않았습니다.**
 
 ```
-클래스는 작성·커밋돼 있으나 어떤 RestClient.Builder 에도 연결돼 있지 않음
-        │
-        └── 맨 ClientHttpRequestInterceptor 빈은 자동으로 적용되지 않음
-              반드시 빌더에 붙여야 하는데 후보 경로가 셋이고
-              서비스가 빌더를 어떻게 선언하느냐로 갈림
+확인 방법   서비스 A 가 인증된 요청을 처리하다 B 를 호출했을 때
+            B 가 만든 행의 created_by 가 SYSTEM 이 아니라 실제 accountId 여야 함
+
+지금 못 하는 이유   부르는 쪽(user)은 있으나 받는 쪽이 아직 없음
+                   place · verdict · review 중 하나가 생기면 확인됨
 ```
 
-| 후보 | 걸리는 것 |
-|---|---|
-| `RestClientCustomizer` 빈 | Boot 이 자동 설정한 빌더에만 적용됨 |
-| `@LoadBalanced RestClient.Builder` | 서비스가 `RestClient.builder()` 로 새로 만들면 안 걸림 |
-| Boot 4 의 `@HttpExchange` 자동 설정 | 자체 group configurer 메커니즘이 따로 있음 |
-
-**확인 방법** — 서비스 A 가 인증된 요청 처리 중에 B 를 호출했을 때
-**B 가 만든 행의 `created_by` 가 `SYSTEM` 이 아니라 실제 accountId** 여야 합니다.
-
-> **에러가 안 나므로 이것을 안 보면 모릅니다.**
+> **에러가 안 나므로 이것을 안 보면 모릅니다.** 헤더가 안 실려도 호출은 성공하고
+> `created_by` 만 조용히 `SYSTEM` 으로 남습니다.
 
 <br><br>
 
