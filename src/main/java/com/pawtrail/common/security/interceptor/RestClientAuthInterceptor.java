@@ -21,9 +21,11 @@ import java.io.IOException;
 // traceparent는 다루지 않음, Micrometer가 자동으로 처리하며
 // 직접 넣으면 헤더가 중복돼 표준상 무효 처리되어 받는 쪽이 새 trace를 시작함
 //
-// *아직 RestClient.Builder에 연결되어 있지 않음
-// RestClientCustomizer, @LoadBalanced 빌더, Boot 4의 HTTP Service Client 자동설정 중
-// 어느 경로로 붙일지는 서비스 간 호출을 처음 구현할 때 정함
+// CommonRestClientAutoConfiguration 의 internalRestClientBuilder 에 붙어 있음
+// 그 빌더로 만든 RestClient 로 나가는 요청에만 실림
+//
+// 바깥 API 를 부르는 externalRestClientBuilder 에는 붙이지 않음
+// 우리 사용자 식별자를 바깥에 보낼 이유가 없음
 public class RestClientAuthInterceptor implements ClientHttpRequestInterceptor {
 
     @Override
