@@ -29,7 +29,7 @@
 ```
                     [ GitHub Packages ]
                              │
-                             │  com.pawtrail:common:0.0.12  (jar)
+                             │  com.pawtrail:common:0.0.13  (jar)
                              ▼
 도메인 서비스 14개  ──▶  공통 모듈   자동 설정 7개가 조건에 맞으면 켜짐
         │                    │
@@ -71,7 +71,7 @@
 | 자동 설정 | 7개 | [2장](#2-자동-설정-7개) |
 | Flyway 스크립트 | 2개 (`V1`·`V2`) | [3-5](#3-5-messageoutbox--이벤트를-안전하게-보내기) |
 | 공통 에러 코드 | 6개 | [3-2](#3-2-exception--에러-코드-규약) |
-| 현재 버전 | **0.0.12** | [5장](#5-버전을-올리고-배포하기) |
+| 현재 버전 | **0.0.13** | [5장](#5-버전을-올리고-배포하기) |
 | 소비하는 서비스 | 도메인 14개 | 플랫폼 3개는 **안 씀** |
 
 ---
@@ -112,7 +112,7 @@
               도커 이미지가 됨                        *다른 서비스의 build.gradle 에 한 줄로 들어감
 ```
 
-**GitHub Packages 에 올려 두고 각 서비스가 내려받습니다.** `commonVersion=0.0.12` 가 그것입니다.
+**GitHub Packages 에 올려 두고 각 서비스가 내려받습니다.** `commonVersion=0.0.13` 가 그것입니다.
 
 ---
 
@@ -291,7 +291,7 @@ dependencies {
 버전은 `gradle.properties` 에 한 줄로 둡니다.
 
 ```properties
-commonVersion=0.0.12
+commonVersion=0.0.13
 ```
 
 > **최신 버전은 조직의 Packages 페이지에서 확인합니다.** 이 문서의 숫자가
@@ -1797,7 +1797,7 @@ service-template/README.md                1-4-2 · 7-1 · 6-4 표      세 곳
 ### 5-4. jar 안을 확인합니다
 
 ```bash
-jar tf build/libs/common-0.0.12.jar | grep -E "AutoConfiguration.imports|db/migration|Common.*AutoConfiguration.class"
+jar tf build/libs/common-0.0.13.jar | grep -E "AutoConfiguration.imports|db/migration|Common.*AutoConfiguration.class"
 ```
 
 **들어가야 하는 것입니다.**
@@ -1845,6 +1845,59 @@ compileOnly 'org.springframework.boot:spring-boot-starter-data-jpa'
 
 `api` 로 하면 verdict 에 JPA 가 딸려 와 `@ConditionalOnClass` 가 참이 되고
 **DataSource 가 없어 기동에 실패합니다.**
+
+<br><br>
+
+---
+
+### 5-6. 테스트
+
+**이 저장소의 테스트는 하나뿐입니다.** `CommonApiResponseTest` 입니다.
+
+```
+src/test/java/com/pawtrail/common/response/CommonApiResponseTest.java
+```
+
+응답 봉투를 **다시 읽을 수 있는지**만 봅니다. 만드는 길은 서비스가 매일 쓰므로
+깨지면 바로 드러나지만, 읽는 길은 서비스 간 호출에서만 쓰여 **막혀 있어도
+한참 모릅니다.** 실제로 `0.0.12` 까지 막혀 있었습니다.
+
+| 무엇을 | 왜 |
+|---|---|
+| 왕복 | `success()` 로 만든 것을 다시 읽음 |
+| 서비스가 보내는 형태 | 실제 응답 JSON 그대로. `traceId` 포함 |
+| `data` 가 null | 실패 응답도 읽혀야 함 |
+| 모르는 필드 | 앞으로 필드가 늘어도 소비자가 안 깨져야 함 |
+| 목록 응답 | `CommonApiResponse<PageResponse<T>>` — **제네릭 2중 중첩** |
+| UUID | 식별자가 전부 UUID 임 |
+
+---
+
+**`JsonMapper` 를 씁니다. `ObjectMapper` 가 아닙니다.**
+
+이 프로젝트는 Jackson 이 두 세대 섞여 있습니다.
+
+| | 패키지 | 이 프로젝트가 |
+|---|---|---|
+| 애노테이션 | `com.fasterxml.jackson.annotation` | **씀** (Jackson 3 도 이 패키지 그대로) |
+| 매퍼 (Jackson 3) | `tools.jackson.databind.json.JsonMapper` | **씀** |
+| 매퍼 (Jackson 2) | `com.fasterxml.jackson.databind.ObjectMapper` | 클래스패스엔 있으나 안 씀 |
+
+> **`ObjectMapper` 로 써도 컴파일은 됩니다.** 그러면 실제로 쓰지 않는 매퍼를
+> 검증하게 되어 테스트가 통과해도 실물이 깨질 수 있습니다.
+
+---
+
+**`build.gradle` 에 `useJUnitPlatform()` 이 필요합니다.**
+
+```groovy
+tasks.named('test') {
+    useJUnitPlatform()
+}
+```
+
+없으면 **테스트를 하나도 못 찾고 빌드가 실패합니다.** 테스트가 0개였을 때는
+이 블록이 없어도 드러나지 않았습니다.
 
 <br><br>
 
@@ -2256,6 +2309,7 @@ W3C 표준 헤더      라이브러리가     traceparent
 | `0.0.10` | **서비스 간 호출 기반** | 인터셉터가 클래스만 있고 어디에도 안 붙어 있었음 |
 | `0.0.11` | 빌더를 프로토타입으로 · 요청 팩터리를 `detect()` 로 | 빌더가 싱글턴이라 `baseUrl` 이 서로 덮었음 |
 | `0.0.12` | **`@Primary` 인 맨 빌더 추가** | 빌더가 둘이라 유레카가 하나를 못 골랐음 |
+| `0.0.13` | `CommonApiResponse` 에 `@JsonCreator` | 만들 수만 있고 **읽을 수가 없었음** |
 
 ---
 
@@ -2304,6 +2358,24 @@ BaseEntity 를 @MappedSuperclass 로 제공하면서 그 Q 클래스를 안 만�
 0.0.12  @Primary 맨 빌더  ──▶  registration status: 204
 ```
 
+---
+
+**`0.0.13` 은 봉투를 읽을 수 없던 것을 고쳤습니다.**
+
+`CommonApiResponse` 는 **만드는 쪽과 읽는 쪽이 둘 다 쓰는 클래스**입니다.
+서비스가 응답을 만들 때 쓰고, 그 응답을 받는 다른 서비스가 같은 타입으로 읽습니다.
+그런데 만드는 길만 있었습니다.
+
+```
+private CommonApiResponse(...)     생성자가 private
+없음                               기본 생성자 · @JsonCreator
+결과                               받는 쪽이 예외로 실패
+```
+
+**부르는 쪽이 그 예외를 삼키면 값만 조용히 비고 화면은 멀쩡해 보입니다.**
+user 가 review 를 부르는 자리에서 처음 드러났습니다. 이 자리를 지키려고
+[5-6](#5-6-테스트) 의 단위 테스트를 함께 넣었습니다.
+
 요청 팩터리를 함께 바꾼 것은 **`SimpleClientHttpRequestFactory` 가 PATCH 를
 보내지 못하기 때문**입니다. `HttpURLConnection` 기반이라 그렇습니다. 연결을
 재사용하지 않는 것은 규모가 커질 때의 문제지만 **PATCH 는 쓰려는 순간 막히는
@@ -2329,6 +2401,8 @@ BaseEntity 를 @MappedSuperclass 로 제공하면서 그 Q 클래스를 안 만�
                                       남을 안 부르는 auth 에서도 새 자동 설정이 정상
 ✅ 0.0.12 유레카 등록                   registration status: 204
                                       /eureka/apps 에 USER-SERVICE 가 뜸
+✅ CommonApiResponse 역직렬화           단위 테스트 6개 (5장 참고)
+                                      제네릭 2중 중첩 · UUID · data 가 null 인 실패 응답
 ```
 
 <br><br>
@@ -2389,7 +2463,6 @@ curl -X POST http://localhost:8081/api/v1/auth/login \
 
 | 무엇 | 언제 |
 |---|---|
-| `CommonApiResponse` 역직렬화 | 받는 쪽을 처음 짜는 서비스에서. 생성자가 private 이고 `@JsonCreator` 가 없어 읽는 쪽이 걸림 |
 | 소프트 딜리트 조회 방식 | 실제 조회를 짜는 서비스에서 |
 | `processed_event` 정리 배치 | 지금 규모에서는 불필요 |
 | `max.block.ms` 를 낮출지 | 카프카가 죽었을 때 3초 타임아웃이 60초에 가려짐 |

@@ -6,7 +6,7 @@ plugins {
 }
 
 group = 'com.pawtrail'
-version = '0.0.12'
+version = '0.0.13'
 
 java {
     toolchain {
@@ -24,6 +24,13 @@ tasks.named('bootJar') {
 tasks.named('jar') {
     enabled = true
     archiveClassifier = ''
+}
+
+// 테스트는 JUnit 5(Jupiter)로 돌림
+// 없으면 Gradle 이 테스트를 하나도 못 찾고 빌드가 실패함
+// common 에 테스트가 0개였을 때는 이 블록이 없어도 드러나지 않았음
+tasks.named('test') {
+    useJUnitPlatform()
 }
 
 // 서비스 쪽 service-template 의 값과 반드시 같아야 함
