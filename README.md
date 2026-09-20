@@ -1,6 +1,6 @@
 # common
 
-**함께하개의 공통 모듈입니다.** 도메인 서비스 14개가 전부 쓰는 것만 담습니다.
+**함께하개의 공통 모듈입니다.** 도메인 서비스 13개가 전부 쓰는 것만 담습니다.
 
 ---
 
@@ -31,7 +31,7 @@
                              │
                              │  com.pawtrail:common:0.0.13  (jar)
                              ▼
-도메인 서비스 14개  ──▶  공통 모듈   자동 설정 7개가 조건에 맞으면 켜짐
+도메인 서비스 13개  ──▶  공통 모듈   자동 설정 7개가 조건에 맞으면 켜짐
         │                    │
         │                    ├──▶  응답 형식 · 예외 처리
         │                    ├──▶  인증 헤더 → SecurityContext
@@ -55,7 +55,7 @@
 
 | | 있으면 | 없으면 |
 |---|---|---|
-| 응답 형식 | 한 곳에서 정의 | **서비스 14개가 각자 만듦 → 형태가 갈림** |
+| 응답 형식 | 한 곳에서 정의 | **서비스 13개가 각자 만듦 → 형태가 갈림** |
 | 예외 처리 | 자동으로 붙음 | 서비스마다 `@RestControllerAdvice` 를 복사 |
 | 감사 컬럼 | `BaseEntity` 상속 | 테이블마다 6컬럼을 직접 |
 | Outbox | `record()` 한 줄 | **5단계를 손으로** — 하나만 빠뜨려도 이벤트가 안 나감 |
@@ -72,7 +72,7 @@
 | Flyway 스크립트 | 2개 (`V1`·`V2`) | [3-5](#3-5-messageoutbox--이벤트를-안전하게-보내기) |
 | 공통 에러 코드 | 6개 | [3-2](#3-2-exception--에러-코드-규약) |
 | 현재 버전 | **0.0.13** | [5장](#5-버전을-올리고-배포하기) |
-| 소비하는 서비스 | 도메인 14개 | 플랫폼 3개는 **안 씀** |
+| 소비하는 서비스 | 도메인 13개 | 플랫폼 3개는 **안 씀** |
 
 ---
 
@@ -364,7 +364,7 @@ public class PlaceApplication {
 
 **DB 를 쓰지 않는 서비스는 둘 다 지웁니다.**
 
-`verdict` · `congestion` · `route` 가 여기 해당합니다.
+`verdict` · `weather` · `extract` 가 여기 해당합니다.
 `import` 도 함께 지워야 컴파일이 통과합니다. `service-template` README 1-5 참고.
 
 <br><br>
@@ -449,7 +449,7 @@ spring-web                        ──▶  CommonRestClientAutoConfiguration
 
 
 DB 를 쓰는 서비스        7개 전부 켜짐        auth · user · pet · place · policy ...
-무상태 서비스            Web · Security · RestClient · Async    verdict · congestion · route
+무상태 서비스            Web · Security · RestClient · Async    verdict · weather · extract
 게이트웨이               ⛔ 애초에 안 씀 (플랫폼 3개)
 ```
 
@@ -632,7 +632,7 @@ provider 에서 @Qualifier 누락  ──▶  맨 빌더 주입  ──▶  base
 
 ### 2-5. 무상태 서비스에서 안 켜지는 것
 
-`verdict` · `congestion` · `route` 가 JPA 스타터를 지우면 **셋이 함께 꺼집니다.**
+`verdict` · `weather` · `extract` 가 JPA 스타터를 지우면 **셋이 함께 꺼집니다.**
 
 | 못 쓰게 되는 것 | 대신 |
 |---|---|
@@ -656,8 +656,8 @@ internal · external 빌더              다른 서비스와 바깥 API 호출
 
 > **`CommonRestClientAutoConfiguration` 은 무상태 서비스에서도 켜집니다.**
 > 조건이 `RestClient` 이고 그 클래스는 `spring-web` 에 있어 웹 서비스면 항상 있습니다.
-> **오히려 무상태 서비스가 더 많이 씁니다.** verdict 는 policy 를,
-> congestion 과 route 는 바깥 API 를 부릅니다.
+> **오히려 무상태 서비스가 더 많이 씁니다.** verdict 는 pet · policy 를,
+> weather 는 기상청을, extract 는 ingest · policy 와 LLM 을 부릅니다.
 
 <br><br>
 
@@ -2049,7 +2049,7 @@ Settings → Editor → File Encodings
 |---|---|
 | `AutoConfiguration.imports` 로만 등록 | 소비 서비스가 `scanBasePackages` 에 넣기 |
 | `@ConditionalOnMissingBean` 이 신뢰됨 | 일반 `@Configuration` 은 처리 순서가 안 보장돼 조건이 뒤집힘 |
-| 앱 클래스에 적을 것이 줄어듦 | **14개 레포가 정확히 적어야 하는 구조** |
+| 앱 클래스에 적을 것이 줄어듦 | **13개 레포가 정확히 적어야 하는 구조** |
 
 **auth 가 자기 `SecurityFilterChain` 을 정의하는 자리가 설계에 이미 있었고,**
 그것이 성립하려면 조건이 신뢰돼야 했습니다.
@@ -2149,7 +2149,7 @@ OutboxCommitListener    @Async + @TransactionalEventListener    트랜잭션 없
 
 ### 7-4. 무엇을 여기 넣고 무엇을 안 넣나
 
-**공통 모듈에 넣을지는 매번 판단해야 하는 물음입니다.** 넣으면 17개 서비스가
+**공통 모듈에 넣을지는 매번 판단해야 하는 물음입니다.** 넣으면 13개 서비스가
 함께 지고 가고, 안 넣으면 같은 코드가 여러 저장소에 생깁니다.
 
 **기준 3개를 전부 통과해야 넣습니다.**
@@ -2167,10 +2167,10 @@ OutboxCommitListener    @Async + @TransactionalEventListener    트랜잭션 없
 | 대상 | 결과 | 근거 |
 |---|---|---|
 | `BaseEntity` · `ErrorCode` · 응답 래퍼 · 보안 체인 | **넣음** | 기준 3개 전부 통과 |
-| `/api/v1/admin/**` → `hasRole("ADMIN")` 한 줄 | **넣음** | 한 줄로 17개가 자동 보호됨. 각자 붙이게 하면 빠뜨린 서비스만 뚫림 |
+| `/api/v1/admin/**` → `hasRole("ADMIN")` 한 줄 | **넣음** | 한 줄로 13개가 자동 보호됨. 각자 붙이게 하면 빠뜨린 서비스만 뚫림 |
 | `RestClientAuthInterceptor` · 빌더 3개 | **넣음** | 짝이 여기 있음. 아래 참고 |
 | 토픽 이름 상수 | **안 넣음** | ① — 작업 도중 추가·변경·삭제됨 |
-| S3 presigned 발급 | **안 넣음** | ②③ — `user` · `pet` · `review` 3개만 쓰고 AWS SDK 가 나머지 14개에도 딸려감 |
+| S3 presigned 발급 | **안 넣음** | ②③ — `user` · `pet` · `review` 3개만 쓰고 AWS SDK 가 나머지 10개에도 딸려감 |
 | 이벤트 payload DTO | **안 넣음** | 발행자가 필드 하나를 고칠 때 받는 쪽이 전부 재배포됨. 이벤트로 떼어 놓은 것을 다시 붙이는 셈입니다 |
 | `AfterCommitExecutor` | **안 넣음** | ② — `auth` · `user` · `pet` · `review` 4개만 씁니다. 나머지는 DB 가 없어 트랜잭션 자체가 없거나 Redis · S3 를 안 건드립니다 |
 
@@ -2208,7 +2208,7 @@ private 메서드였는데 비밀번호 재설정도 같은 것이 필요해져 
 꺼냈습니다.**
 
 **예측이 아니라 실물이 쌓인 뒤에 판단합니다.** 미리 올려 두었다가 안 쓰게 되면
-17개가 지고 가는 빈이 하나 늘어납니다.
+13개가 지고 가는 빈이 하나 늘어납니다.
 
 <br><br>
 
@@ -2319,7 +2319,7 @@ PK          Hibernate @UuidGenerator(style = VERSION_7)
 ```
 UuidVersion7Strategy 는 hibernate-core 에 있음
         │
-        └── 무상태 서비스(verdict · congestion)에는 Hibernate 가 없음
+        └── 무상태 서비스(verdict · weather · extract)에는 Hibernate 가 없음
               그런데 verdict 도 이벤트를 소비하며 EventEnvelope 를 다룸
                     │
                     └── 재사용하면 message/ 가 JPA 에 묶여
